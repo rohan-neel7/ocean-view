@@ -1,0 +1,49 @@
+{
+  "dataset": "ArgoFloats",
+  "provider": "Coriolis Global Data Assembly Centre (GDAC)",
+  "sourceMode": "FIXTURE",
+  "profiles": [
+    {
+      "platformNumber": "2900771",
+      "cycleNumber": 103,
+      "time": "2010-01-05T05:09:00Z",
+      "latitude": 14.971,
+      "longitude": 68.747,
+      "levels": [
+        { "pres": 4.8, "depthMeters": 4.8, "temp": 27.393, "psal": 36.262, "tempQc": 1, "psalQc": 1 },
+        { "pres": 9.5, "depthMeters": 9.5, "temp": 27.391, "psal": 36.263, "tempQc": 1, "psalQc": 1 },
+        { "pres": 18.9, "depthMeters": 18.9, "temp": 27.402, "psal": 36.275, "tempQc": 1, "psalQc": 1 },
+        { "pres": 29.3, "depthMeters": 29.3, "temp": 27.525, "psal": 36.512, "tempQc": 1, "psalQc": 1 },
+        { "pres": 39.3, "depthMeters": 39.3, "temp": 27.578, "psal": 36.615, "tempQc": 1, "psalQc": 1 },
+        { "pres": 49.6, "depthMeters": 49.6, "temp": 27.572, "psal": 36.619, "tempQc": 1, "psalQc": 1 },
+        { "pres": 69.8, "depthMeters": 69.8, "temp": 26.834, "psal": 36.551, "tempQc": 1, "psalQc": 1 },
+        { "pres": 99.4, "depthMeters": 99.4, "temp": 23.415, "psal": 36.102, "tempQc": 1, "psalQc": 1 },
+        { "pres": 149.7, "depthMeters": 149.7, "temp": 17.842, "psal": 35.483, "tempQc": 1, "psalQc": 1 },
+        { "pres": 199.5, "depthMeters": 199.5, "temp": 14.618, "psal": 35.214, "tempQc": 1, "psalQc": 1 },
+        { "pres": 300.2, "depthMeters": 300.2, "temp": 12.105, "psal": 35.045, "tempQc": 1, "psalQc": 1 },
+        { "pres": 500.1, "depthMeters": 500.1, "temp": 9.852, "psal": 35.012, "tempQc": 1, "psalQc": 1 },
+        { "pres": 750.4, "depthMeters": 750.4, "temp": 7.614, "psal": 34.921, "tempQc": 1, "psalQc": 1 },
+        { "pres": 1000.0, "depthMeters": 1000.0, "temp": 5.823, "psal": 34.854, "tempQc": 1, "psalQc": 1 },
+        { "pres": 1500.0, "depthMeters": 1500.0, "temp": 3.651, "psal": 34.782, "tempQc": 1, "psalQc": 1 },
+        { "pres": 2000.0, "depthMeters": 2000.0, "temp": 2.215, "psal": 34.741, "tempQc": 1, "psalQc": 1 }
+      ]
+    },
+    {
+      "platformNumber": "2900772",
+      "cycleNumber": 89,
+      "time": "2010-01-08T11:24:00Z",
+      "latitude": 12.450,
+      "longitude": 66.820,
+      "levels": [
+        { "pres": 5.0, "depthMeters": 5.0, "temp": 28.120, "psal": 36.115, "tempQc": 1, "psalQc": 1 },
+        { "pres": 25.0, "depthMeters": 25.0, "temp": 28.114, "psal": 36.118, "tempQc": 1, "psalQc": 1 },
+        { "pres": 50.0, "depthMeters": 50.0, "temp": 27.950, "psal": 36.240, "tempQc": 1, "psalQc": 1 },
+        { "pres": 100.0, "depthMeters": 100.0, "temp": 24.110, "psal": 36.050, "tempQc": 1, "psalQc": 1 },
+        { "pres": 200.0, "depthMeters": 200.0, "temp": 15.420, "psal": 35.320, "tempQc": 1, "psalQc": 1 },
+        { "pres": 500.0, "depthMeters": 500.0, "temp": 10.250, "psal": 35.080, "tempQc": 1, "psalQc": 1 },
+        { "pres": 1000.0, "depthMeters": 1000.0, "temp": 6.120, "psal": 34.890, "tempQc": 1, "psalQc": 1 },
+        { "pres": 2000.0, "depthMeters": 2000.0, "temp": 2.340, "psal": 34.750, "tempQc": 1, "psalQc": 1 }
+      ]
+    }
+  ]
+}

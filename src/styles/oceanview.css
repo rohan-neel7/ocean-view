@@ -1,0 +1,367 @@
+/* ==========================================================================
+   OCEANVIEW — Scientific Visualization Workstation Design System
+   INCOIS 3D Ocean Data Visualization System (SIH26067)
+   Pure Vanilla CSS — High Performance, Zero Framework Overhead
+   ========================================================================== */
+
+@charset "UTF-8";
+
+:root {
+  /* Core Color Palette — Deep Ocean Theme */
+  --bg-deep: #030712;
+  --bg-surface: rgba(10, 16, 31, 0.82);
+  --bg-surface-elevated: rgba(15, 23, 42, 0.92);
+  --bg-surface-hover: rgba(30, 41, 59, 0.85);
+  --bg-card: rgba(15, 23, 42, 0.70);
+  
+  /* Borders & Glows */
+  --border-subtle: rgba(56, 189, 248, 0.18);
+  --border-active: rgba(56, 189, 248, 0.60);
+  --border-highlight: #38bdf8;
+  --glow-cyan: 0 0 15px rgba(56, 189, 248, 0.35);
+  --glow-emerald: 0 0 15px rgba(52, 211, 153, 0.35);
+  --glow-amber: 0 0 15px rgba(251, 191, 36, 0.35);
+  
+  /* Text */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --text-cyan: #38bdf8;
+  --text-emerald: #34d399;
+  --text-amber: #fbbf24;
+  --text-rose: #fb7185;
+
+  /* DataState Tokens */
+  --state-observed: #10b981;
+  --state-corroborated: #06b6d4;
+  --state-modeled: #3b82f6;
+  --state-predicted: #8b5cf6;
+  --state-derived: #6366f1;
+  --state-estimated: #ec4899;
+  --state-static: #64748b;
+  --state-partial: #f59e0b;
+  --state-unavailable: #475569;
+  --state-synthetic: #d97706;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Shadows & Glass */
+  --glass-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.65);
+  --glass-blur: blur(16px);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-deep);
+  color: var(--text-primary);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Cesium Container */
+.cesium-container-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 1;
+}
+
+.cesium-widget, .cesium-widget canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* Hide Default Cesium UI junk */
+.cesium-widget-credits,
+.cesium-viewer-bottom,
+.cesium-credit-expand-link {
+  display: none !important;
+}
+
+/* Glassmorphic Panel Foundation */
+.glass-panel {
+  background: var(--bg-surface);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-panel:hover {
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+.glass-panel-elevated {
+  background: var(--bg-surface-elevated);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
+}
+
+/* ==========================================================================
+   HEADER HUD
+   ========================================================================== */
+.oceanview-header {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 50;
+  border-radius: var(--radius-lg);
+}
+
+.brand-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.brand-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: var(--text-cyan);
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+
+.synthetic-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(217, 119, 6, 0.2);
+  border: 1px solid rgba(217, 119, 6, 0.6);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: #fde68a;
+}
+
+/* ==========================================================================
+   SIDEBAR & DOCKS
+   ========================================================================== */
+.oceanview-sidebar {
+  position: absolute;
+  top: 76px;
+  left: 16px;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 40;
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+}
+
+.oceanview-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.oceanview-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+}
+
+/* Floating Bottom Dock */
+.oceanview-dock {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  z-index: 40;
+  border-radius: var(--radius-lg);
+  min-width: 580px;
+  max-width: 90vw;
+}
+
+/* Variable Chips */
+.variable-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.variable-chip:hover {
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.variable-chip.active {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--border-highlight);
+  box-shadow: var(--glow-cyan);
+}
+
+/* Layer Toggle Row */
+.layer-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  transition: background 0.15s ease;
+}
+
+.layer-toggle-row:hover {
+  background: rgba(30, 41, 59, 0.6);
+}
+
+/* Scientific Colorbars */
+.sci-colorbar {
+  height: 8px;
+  border-radius: 3px;
+  width: 100%;
+}
+
+.cmocean-thermal {
+  background: linear-gradient(to right, #042333, #0e557b, #208796, #50a98f, #99c279, #e0cb5c, #f4b434, #ec6b20, #cb281b, #89001c);
+}
+
+.cmocean-haline {
+  background: linear-gradient(to right, #2b115e, #363085, #3553a6, #2d78b8, #229cb9, #28bfa6, #52dd8b, #93f16d, #dbf861);
+}
+
+.cmocean-speed {
+  background: linear-gradient(to right, #edf8fb, #b2e2e2, #66c2a4, #2ca25f, #006d2c);
+}
+
+.cmocean-algae {
+  background: linear-gradient(to right, #1a3311, #2c591c, #48832a, #6db03e, #9de057, #cfff79);
+}
+
+/* Scientific Readouts & Buttons */
+.mono-readout {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.btn-sci {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.btn-sci:hover {
+  background: rgba(56, 189, 248, 0.2);
+  color: var(--text-cyan);
+  border-color: var(--border-highlight);
+}
+
+.btn-sci-active {
+  background: rgba(56, 189, 248, 0.25);
+  color: var(--text-cyan);
+  border-color: var(--border-highlight);
+  box-shadow: var(--glow-cyan);
+}
+
+/* Depth Slider Styling */
+.depth-slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.depth-slider {
+  flex: 1;
+  height: 4px;
+  background: #1e293b;
+  border-radius: 2px;
+  appearance: none;
+  outline: none;
+}
+
+.depth-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-cyan);
+  cursor: pointer;
+  box-shadow: 0 0 8px var(--text-cyan);
+  transition: transform 0.1s ease;
+}
+
+.depth-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* Subsurface Workstation Panel */
+.oceanview-subsurface-panel {
+  position: absolute;
+  bottom: 84px;
+  left: 16px;
+  width: 380px;
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  z-index: 40;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Right Side Floating Inspectors */
+.oceanview-inspector {
+  position: absolute;
+  top: 76px;
+  right: 16px;
+  width: 320px;
+  z-index: 40;
+}
