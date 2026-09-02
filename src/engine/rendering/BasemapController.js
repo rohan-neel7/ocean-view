@@ -14,10 +14,11 @@ import * as Cesium from 'cesium';
 import { governorRequestRender } from './renderGovernor.js';
 
 export const GOOGLE_MAPS_KEY =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_KEY) ||
-  'AIzaSyB2KjC17l9IufmvTuV1JCLNTQwnkjP3qHY';
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_KEY) || null;
 
-if (Cesium.GoogleMaps) {
+if (!GOOGLE_MAPS_KEY) {
+  console.error('[BasemapController] VITE_GOOGLE_MAPS_KEY is not set — Google 3D Tiles will be unavailable.');
+} else if (Cesium.GoogleMaps) {
   Cesium.GoogleMaps.defaultApiKey = GOOGLE_MAPS_KEY;
 }
 
@@ -64,12 +65,12 @@ export const BASEMAPS = [
 export class BasemapController {
   constructor(viewer) {
     this.viewer = viewer;
-    this.activeId = 'DARK_MATTER';
+    this.activeId = 'SATELLITE';
     this.imageryLayer = null;
     this.google3DTileset = null;
     this.providers = new Map();
 
-    this.setBasemap('DARK_MATTER');
+    this.setBasemap('SATELLITE');
   }
 
   async setBasemap(id) {
@@ -92,11 +93,11 @@ export class BasemapController {
               throw new Error('Google Photorealistic 3D Tiles not supported in this Cesium build');
             }
           } catch (err) {
-            console.warn('[BasemapController] Google 3D Tiles unavailable, falling back to Dark Matter:', err);
+            console.warn('[BasemapController] Google 3D Tiles unavailable, falling back to Satellite:', err);
             if (this.viewer?.scene?.globe) {
               this.viewer.scene.globe.show = true;
             }
-            this.setBasemap('DARK_MATTER');
+            this.setBasemap('SATELLITE');
             return;
           }
         }

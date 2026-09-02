@@ -10,7 +10,7 @@ export default function GlobeViewModes({ bloomEffect, basemapController }) {
   const { isXRayMode, setIsXRayMode } = useOceanView();
   const [activeMode, setActiveMode] = useState('RESET');
   const [bloomActive, setBloomActive] = useState(false);
-  const [activeBasemap, setActiveBasemap] = useState('DARK_MATTER');
+  const [activeBasemap, setActiveBasemap] = useState('SATELLITE');
 
   const handleSelectMode = (modeKey) => {
     setActiveMode(modeKey);
