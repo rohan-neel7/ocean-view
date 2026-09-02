@@ -206,7 +206,15 @@ describe('OceanGridStore', () => {
     assert.ok(scalars.length >= 1);
     assert.ok(vectors.length >= 1);
   });
+
+  it('removes grids by variable name cleanly', () => {
+    store.removeGridByVariable('sea_surface_temperature');
+    const allGrids = store.getAll();
+    const scalars = allGrids.filter((g) => g.variable === 'sea_surface_temperature');
+    assert.equal(scalars.length, 0);
+  });
 });
+
 
 // ===================================================================
 // TEST SUITE: COLORMAP INTERPOLATION

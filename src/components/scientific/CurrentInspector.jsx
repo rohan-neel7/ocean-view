@@ -4,7 +4,7 @@ import { useOceanView } from '../../app/AppContext.jsx';
 import { globalOceanGridStore } from '../../engine/index.js';
 import { sampleVectorFieldBilinear } from '../../engine/ocean/currentMetrics.js';
 
-export default function CurrentInspector() {
+export default function CurrentInspector({ isDocked = false, showHeader = true }) {
   const { probedCoordinate, setProbedCoordinate, activeDepthMeters } = useOceanView();
 
   if (!probedCoordinate) return null;
@@ -25,22 +25,39 @@ export default function CurrentInspector() {
 
   const { lat, lon } = probedCoordinate;
 
+  const containerStyle = isDocked
+    ? { fontSize: '11px', fontFamily: 'var(--font-mono)' }
+    : {
+        padding: '14px',
+        fontSize: '11px',
+        fontFamily: 'var(--font-mono)',
+        width: 'min(320px, calc(100vw - 32px))',
+        position: 'absolute',
+        top: '76px',
+        right: '16px',
+        zIndex: 40,
+        maxHeight: 'calc(100vh - 160px)',
+        overflowY: 'auto',
+      };
+
   return (
-    <div className="glass-panel-elevated" style={{ padding: '14px', fontSize: '11px', fontFamily: 'var(--font-mono)', width: '290px', position: 'absolute', top: '76px', right: '16px', zIndex: 40 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px', marginBottom: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#f8fafc' }}>
-          <Wind style={{ width: '16px', height: '16px', color: '#38bdf8' }} />
-          <span>CURRENT VECTOR PROBE</span>
+    <div className={isDocked ? '' : 'glass-panel-elevated'} style={containerStyle}>
+      {/* Header (optional if dock provides its own collapsible header) */}
+      {showHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#f8fafc' }}>
+            <Wind style={{ width: '16px', height: '16px', color: '#38bdf8' }} />
+            <span>CURRENT VECTOR PROBE</span>
+          </div>
+          <button
+            onClick={() => setProbedCoordinate(null)}
+            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+            title="Close Probe"
+          >
+            <X style={{ width: '14px', height: '14px' }} />
+          </button>
         </div>
-        <button
-          onClick={() => setProbedCoordinate(null)}
-          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
-          title="Close Probe"
-        >
-          <X style={{ width: '14px', height: '14px' }} />
-        </button>
-      </div>
+      )}
 
       {/* Coordinate & Depth Readouts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px', background: 'rgba(15,23,42,0.6)', padding: '8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)', fontSize: '11px' }}>

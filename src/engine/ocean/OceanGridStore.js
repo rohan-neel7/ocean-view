@@ -86,6 +86,43 @@ export class OceanGridStore {
   }
 
   /**
+   * Removes a grid field by ID and releases tracked memory.
+   * @param {string} fieldId
+   * @returns {boolean}
+   */
+  removeGrid(fieldId) {
+    if (!this.fields.has(fieldId)) return false;
+    const field = this.fields.get(fieldId);
+    const mem = field.stats?.memorySizeBytes || (field.data?.byteLength || 0);
+    this.currentMemoryBytes = Math.max(0, this.currentMemoryBytes - mem);
+
+    const varMap = this.timeIndex.get(field.variable);
+    if (varMap && field.timestamp) {
+      varMap.delete(field.timestamp);
+    }
+    this.fields.delete(fieldId);
+    return true;
+  }
+
+  /**
+   * Removes all grid fields for a given variable name and updates memory counters.
+   * @param {string} variable
+   */
+  removeGridByVariable(variable) {
+    if (!variable) return;
+    const toDelete = [];
+    for (const [id, field] of this.fields.entries()) {
+      if (field.variable === variable) {
+        toDelete.push(id);
+      }
+    }
+    for (const id of toDelete) {
+      this.removeGrid(id);
+    }
+    this.timeIndex.delete(variable);
+  }
+
+  /**
    * Returns all stored grid fields.
    * @returns {Array<object>}
    */

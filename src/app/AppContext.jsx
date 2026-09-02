@@ -1,10 +1,10 @@
 /**
  * OceanView — Application Context & Real Scientific State Provider
- * Manages real scientific dataset feeds, velocity fields, multi-platform observations (Argo, Glider, CTD, BGC),
- * variable selection, depth slicing, customizable color scales, and dual presentation modes (Operational vs Outreach).
+ * Manages real scientific dataset feeds, velocity fields, multi-platform observations,
+ * variable selection, depth slicing, customizable color scales, and dual presentation modes.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import {
   globalOceanGridStore,
   globalOceanProfileStore,
@@ -12,7 +12,10 @@ import {
   createCanonicalProfile,
   DataState,
   SourceMode,
+  DATASET_CAPABILITIES,
+  SDC_TIME_STEPS
 } from '../engine/index.js';
+import { OCEAN_REGIONS } from '../engine/rendering/cameraVerbs.js';
 import { normalizeArgoProfile } from '../adapters/ArgoAdapter.js';
 import { normalizeGliderMission } from '../adapters/GliderAdapter.js';
 import { normalizeCTDCast } from '../adapters/CTDAdapter.js';
@@ -20,38 +23,60 @@ import { normalizeBGCProfile } from '../adapters/BGCAdapter.js';
 import { normalizeOceanModelGrid } from '../adapters/OceanModelAdapter.js';
 import { normalizeOceanCurrentGrid } from '../adapters/OceanCurrentAdapter.js';
 import { ColorScaleManager } from '../visualization/color/ColorScaleManager.js';
+import {
+  createAnalysisLocation,
+  isOceanLocation,
+  getAnalysisBounds,
+  findNearbyObservations,
+  sampleAnalysisLocation,
+  AnalysisLocationSource,
+  AnalysisStatus,
+} from '../engine/ocean/analysisLocation.js';
 
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  // Scientific Presentation Mode: 'OPERATIONAL' (High-density analysis) vs 'OUTREACH' (Educational exploration)
   const [presentationMode, setPresentationMode] = useState('OPERATIONAL');
-
-  // Scientific Data Mode: 'REAL_SCIENTIFIC' or 'SYNTHETIC_DEMO'
   const [dataMode, setDataMode] = useState('REAL_SCIENTIFIC');
-  const [sourceStatus, setSourceStatus] = useState('FETCHING'); // 'LIVE' | 'FIXTURE' | 'SYNTHETIC' | 'UNAVAILABLE'
+  
+  // Unified Scientific Selection
+  const [scientificSelection, setScientificSelection] = useState({
+    variable: 'sea_surface_temperature',
+    depthMeters: 5,
+    timeValue: '2010-01-16T00:00:00Z',
+    bounds: OCEAN_REGIONS['ARABIAN_SEA'].dataBounds,
+    regionKey: 'ARABIAN_SEA',
+    location: null // { lat, lon }
+  });
 
-  const [activeVariable, setActiveVariable] = useState('sea_surface_temperature');
+  // Granular Source Status
+  const [sourceStatuses, setSourceStatuses] = useState({
+    model: 'IDLE',
+    current: 'IDLE',
+    argo: 'IDLE',
+    glider: 'IDLE',
+    ctd: 'IDLE',
+    bgc: 'IDLE'
+  });
+
   const [activeColormap, setActiveColormap] = useState('THERMAL');
-  const [activeDepthMeters, setActiveDepthMeters] = useState(5);
-  const [activeTimeStep, setActiveTimeStep] = useState(0);
   const [isPlayingTimeline, setIsPlayingTimeline] = useState(false);
-  const [activeRegion, setActiveRegion] = useState('ARABIAN_SEA');
   const [selectedProfile, setSelectedProfile] = useState(null);
-  const [probedCoordinate, setProbedCoordinate] = useState(null);
 
-  // Multi-Platform Observation Filter: 'ALL' | 'ARGO' | 'GLIDER' | 'CTD' | 'BGC'
+  // Multi-Platform Observation Filter
   const [selectedPlatformType, setSelectedPlatformType] = useState('ALL');
 
   // Color Scale Customization
   const [colorScaleSettings, setColorScaleSettings] = useState({
-    min: null,
-    max: null,
-    scaleType: 'linear',
-    reversed: false,
-    opacity: 0.85,
+    min: null, max: null, scaleType: 'linear', reversed: false, opacity: 0.85,
   });
   const [colorbarModalOpen, setColorbarModalOpen] = useState(false);
+
+  // Spatial Investigation Workspace
+  const [analysisLocation, setAnalysisLocationState] = useState(null);
+  const [analysisHistory, setAnalysisHistory] = useState([]);
+  const [analysisFeedback, setAnalysisFeedback] = useState(null);
+  const analysisGenRef = useRef(0);
 
   // Particle Flow Controls
   const [particleBudget, setParticleBudget] = useState('MEDIUM');
@@ -59,15 +84,15 @@ export function AppProvider({ children }) {
 
   // Subsurface 3D Exploration Controls
   const [isXRayMode, setIsXRayMode] = useState(false);
-  const [subsurfaceMode, setSubsurfaceMode] = useState('HORIZONTAL_SLICE'); // 'HORIZONTAL_SLICE' | 'VERTICAL_TRANSECT' | 'ISOSURFACE_3D'
+  const [subsurfaceMode, setSubsurfaceMode] = useState('HORIZONTAL_SLICE');
   const [verticalExaggeration, setVerticalExaggeration] = useState(20);
-  const [activeIsovalue, setActiveIsovalue] = useState(20); // 20°C Isotherm default
+  const [activeIsovalue, setActiveIsovalue] = useState(20);
   const [selectedTransectId, setSelectedTransectId] = useState('arabian_sea_basin');
 
   // Active Layer Toggles
   const [layers, setLayers] = useState({
     scalarField: true,
-    currentVectors: false,
+    currentVectors: true,
     particleFlow: true,
     argoFloats: true,
     ctdStations: true,
@@ -75,23 +100,24 @@ export function AppProvider({ children }) {
     depthSlices: false,
   });
 
-  const toggleLayer = (layerKey) => {
-    setLayers((prev) => ({ ...prev, [layerKey]: !prev[layerKey] }));
-  };
+  const toggleLayer = useCallback((layerKey) => setLayers((prev) => ({ ...prev, [layerKey]: !prev[layerKey] })), []);
 
-  /**
-   * Ingests real ocean model grids, velocity vectors, Argo floats, gliders, CTD casts, and BGC profiles.
-   */
-  /**
-   * Fetches the model scalar grid for the current variable and depth.
-   * Called on initial load AND whenever variable or depth changes.
-   */
-  const fetchModelGrid = useCallback(async (variable, depthMeters) => {
-    // Map UI variable IDs to ERDDAP variable names
-    const erddapVarName = variable === 'salinity' ? 'salinity' : 'temperature';
+  // Helper to fetch the model scalar grid using unified selection
+  const fetchModelGrid = useCallback(async (selection) => {
+    const caps = DATASET_CAPABILITIES[selection.variable];
+    if (!caps || !caps.available || caps.kind !== 'SCALAR') {
+      globalOceanGridStore.removeGridByVariable(selection.variable); // Clear stale
+      return;
+    }
+    
+    setSourceStatuses(prev => ({ ...prev, model: 'LOADING' }));
+    
+    const erddapVarName = selection.variable === 'salinity' ? 'salinity' : 'temperature';
     const urlVar = erddapVarName === 'salinity' ? 'Salinity' : 'Temperature';
+    const { minLat, maxLat, minLon, maxLon } = selection.bounds;
+    
     try {
-      const url = `/api/ocean/model/slice?minLat=5&maxLat=20&minLon=60&maxLon=80&stride=1&depth=${depthMeters}&variable=${urlVar}`;
+      const url = `/api/ocean/model/slice?minLat=${minLat}&maxLat=${maxLat}&minLon=${minLon}&maxLon=${maxLon}&stride=1&depth=${selection.depthMeters}&time=${selection.timeValue}&variable=${urlVar}`;
       const modelRes = await fetch(url);
       if (modelRes.ok) {
         const modelJson = await modelRes.json();
@@ -99,152 +125,313 @@ export function AppProvider({ children }) {
           sourceMode: modelJson.sourceMode || SourceMode.LIVE,
           dataState: DataState.MODELED,
         });
+        globalOceanGridStore.removeGridByVariable(selection.variable); // Clear stale
         globalOceanGridStore.setGrid(canonicalGrid);
+        setSourceStatuses(prev => ({ ...prev, model: modelJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
+      } else {
+        setSourceStatuses(prev => ({ ...prev, model: 'ERROR' }));
       }
     } catch (_err) {
-      console.warn('[AppContext] Model grid fetch failed for', variable, depthMeters);
+      console.warn('[AppContext] Model grid fetch failed');
+      setSourceStatuses(prev => ({ ...prev, model: 'ERROR' }));
     }
   }, []);
 
-  const loadRealScientificData = useCallback(async (variable = 'sea_surface_temperature', depthMeters = 5) => {
+  // Fetch Vectors (ANDRO)
+  const fetchCurrentVectors = useCallback(async (selection) => {
+    const { minLat, maxLat, minLon, maxLon } = selection.bounds;
+    setSourceStatuses(prev => ({ ...prev, current: 'LOADING' }));
+    
     try {
-      setSourceStatus('FETCHING');
-
-      // 1. Fetch Real Ocean Model Grid Slice (variable + depth aware)
-      await fetchModelGrid(variable, depthMeters);
-
-      // 2. Fetch Real Ocean Current Velocity Slice (u, v from ANDRO)
-      const currentRes = await fetch('/api/ocean/current/slice?minLat=5&maxLat=20&minLon=60&maxLon=80&stride=2&depth=5');
+      const currentRes = await fetch(`/api/ocean/current/slice?minLat=${minLat}&maxLat=${maxLat}&minLon=${minLon}&maxLon=${maxLon}&stride=2&depth=${selection.depthMeters}`);
       if (currentRes.ok) {
         const currentJson = await currentRes.json();
         const canonicalVector = normalizeOceanCurrentGrid(currentJson, {
           sourceMode: currentJson.sourceMode || SourceMode.LIVE,
         });
+        globalOceanGridStore.removeGridByVariable('ocean_current_velocity');
         globalOceanGridStore.setGrid(canonicalVector);
+        setSourceStatuses(prev => ({ ...prev, current: currentJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
+      } else {
+        setSourceStatuses(prev => ({ ...prev, current: 'ERROR' }));
       }
+    } catch (err) {
+      setSourceStatuses(prev => ({ ...prev, current: 'ERROR' }));
+    }
+  }, []);
 
-      // 3. Fetch Real In-Situ Argo Profiles
-      const argoRes = await fetch('/api/ocean/argo/profiles?minLat=5&maxLat=20&minLon=60&maxLon=80&maxProfiles=10');
+  // Fetch Argo
+  const fetchArgo = useCallback(async (selection) => {
+    const { minLat, maxLat, minLon, maxLon } = selection.bounds;
+    setSourceStatuses(prev => ({ ...prev, argo: 'LOADING' }));
+    try {
+      const argoRes = await fetch(`/api/ocean/argo/profiles?minLat=${minLat}&maxLat=${maxLat}&minLon=${minLon}&maxLon=${maxLon}&maxProfiles=10`);
       if (argoRes.ok) {
         const argoJson = await argoRes.json();
         const profiles = argoJson.profiles || [];
         for (const p of profiles) {
-          const canonicalProf = normalizeArgoProfile(p, {
-            sourceMode: argoJson.sourceMode || SourceMode.LIVE,
-          });
+          const canonicalProf = normalizeArgoProfile(p, { sourceMode: argoJson.sourceMode || SourceMode.LIVE });
           globalOceanProfileStore.addProfile(canonicalProf);
         }
+        setSourceStatuses(prev => ({ ...prev, argo: argoJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
+      } else {
+        setSourceStatuses(prev => ({ ...prev, argo: 'ERROR' }));
       }
-
-      // 4. Fetch Real Autonomous Glider Mission
-      try {
-        const gliderRes = await fetch('/api/ocean/glider/missions');
-        if (gliderRes.ok) {
-          const gliderJson = await gliderRes.json();
-          const { profiles } = normalizeGliderMission(gliderJson);
-          for (const prof of profiles) {
-            globalOceanProfileStore.addProfile(prof);
-          }
-        }
-      } catch (_gErr) {
-        console.warn('[AppContext] Glider fetch error, skipping.');
-      }
-
-      // 5. Fetch Real CTD Cruise Stations
-      try {
-        const ctdRes = await fetch('/api/ocean/ctd/stations');
-        if (ctdRes.ok) {
-          const ctdJson = await ctdRes.json();
-          for (const stn of ctdJson.stations || []) {
-            const canonicalCTD = normalizeCTDCast({
-              ...stn,
-              cruiseName: ctdJson.cruiseName,
-              vesselName: ctdJson.vesselName,
-              source: ctdJson.source,
-            });
-            globalOceanProfileStore.addProfile(canonicalCTD);
-          }
-        }
-      } catch (_cErr) {
-        console.warn('[AppContext] CTD fetch error, skipping.');
-      }
-
-      // 6. Fetch Real BGC Profiles
-      try {
-        const bgcRes = await fetch('/api/ocean/bgc/profiles');
-        if (bgcRes.ok) {
-          const bgcJson = await bgcRes.json();
-          for (const prof of bgcJson.profiles || []) {
-            const canonicalBGC = normalizeBGCProfile(prof);
-            globalOceanProfileStore.addProfile(canonicalBGC);
-          }
-        }
-      } catch (_bErr) {
-        console.warn('[AppContext] BGC fetch error, skipping.');
-      }
-
-      // Select initial profile target
-      const allProfiles = globalOceanProfileStore.getAll();
-      if (allProfiles.length > 0) {
-        setSelectedProfile(allProfiles[0]);
-      }
-
-      setSourceStatus('LIVE');
-    } catch (_err) {
-      console.warn('[AppContext] Real data fetch failed, using offline scientific fixture.');
-      seedSyntheticDemonstrationData();
-      setSourceStatus('SYNTHETIC');
+    } catch (err) {
+      setSourceStatuses(prev => ({ ...prev, argo: 'ERROR' }));
     }
-  }, [fetchModelGrid]);
+  }, []);
+  
+  const fetchGlider = useCallback(async () => {
+    setSourceStatuses(prev => ({ ...prev, glider: 'LOADING' }));
+    try {
+      const gliderRes = await fetch('/api/ocean/glider/missions');
+      if (gliderRes.ok) {
+        const gliderJson = await gliderRes.json();
+        const { profiles } = normalizeGliderMission(gliderJson);
+        profiles.forEach(prof => globalOceanProfileStore.addProfile(prof));
+        setSourceStatuses(prev => ({ ...prev, glider: gliderJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
+      } else {
+        setSourceStatuses(prev => ({ ...prev, glider: 'ERROR' }));
+      }
+    } catch (err) {
+      setSourceStatuses(prev => ({ ...prev, glider: 'ERROR' }));
+    }
+  }, []);
+  
+  const fetchCTD = useCallback(async () => {
+    setSourceStatuses(prev => ({ ...prev, ctd: 'LOADING' }));
+    try {
+      const ctdRes = await fetch('/api/ocean/ctd/stations');
+      if (ctdRes.ok) {
+        const ctdJson = await ctdRes.json();
+        for (const stn of ctdJson.stations || []) {
+          const canonicalCTD = normalizeCTDCast({
+            ...stn, cruiseName: ctdJson.cruiseName, vesselName: ctdJson.vesselName, source: ctdJson.source,
+          });
+          globalOceanProfileStore.addProfile(canonicalCTD);
+        }
+        setSourceStatuses(prev => ({ ...prev, ctd: ctdJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
+      } else {
+        setSourceStatuses(prev => ({ ...prev, ctd: 'ERROR' }));
+      }
+    } catch (err) {
+      setSourceStatuses(prev => ({ ...prev, ctd: 'ERROR' }));
+    }
+  }, []);
+  
+  const fetchBGC = useCallback(async () => {
+    setSourceStatuses(prev => ({ ...prev, bgc: 'LOADING' }));
+    try {
+      const bgcRes = await fetch('/api/ocean/bgc/profiles');
+      if (bgcRes.ok) {
+        const bgcJson = await bgcRes.json();
+        for (const prof of bgcJson.profiles || []) {
+          const canonicalBGC = normalizeBGCProfile(prof);
+          globalOceanProfileStore.addProfile(canonicalBGC);
+        }
+        setSourceStatuses(prev => ({ ...prev, bgc: bgcJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
+      } else {
+        setSourceStatuses(prev => ({ ...prev, bgc: 'ERROR' }));
+      }
+    } catch (err) {
+      setSourceStatuses(prev => ({ ...prev, bgc: 'ERROR' }));
+    }
+  }, []);
 
-  // Initialize Data Feed on Mount or Mode Change
+  const loadRealScientificData = useCallback(async (selection) => {
+    if (dataMode !== 'REAL_SCIENTIFIC') {
+      seedSyntheticDemonstrationData();
+      setSourceStatuses({ model: 'SYNTHETIC', current: 'SYNTHETIC', argo: 'SYNTHETIC', glider: 'SYNTHETIC', ctd: 'SYNTHETIC', bgc: 'SYNTHETIC' });
+      return;
+    }
+    
+    // Clear old data when changing bounds
+    globalOceanGridStore.clear();
+    globalOceanProfileStore.clear();
+    
+    // Fire all fetches
+    fetchModelGrid(selection);
+    fetchCurrentVectors(selection);
+    fetchArgo(selection);
+    fetchGlider();
+    fetchCTD();
+    fetchBGC();
+  }, [dataMode, fetchModelGrid, fetchCurrentVectors, fetchArgo, fetchGlider, fetchCTD, fetchBGC]);
+
+  // Handle dataMode toggles or initial mount
   useEffect(() => {
-    if (dataMode === 'REAL_SCIENTIFIC') {
-      loadRealScientificData(activeVariable, activeDepthMeters);
-    } else {
-      seedSyntheticDemonstrationData();
-      setSourceStatus('SYNTHETIC');
-    }
+    loadRealScientificData(scientificSelection);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataMode]);
-
-  // Re-fetch model grid when variable or depth changes (after initial load)
-  const isFirstMount = React.useRef(true);
+  
+  // Track selection changes and refetch as necessary
+  const prevSelection = useRef(scientificSelection);
   useEffect(() => {
-    // Skip on first mount — the main loadRealScientificData call handles it
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      return;
-    }
     if (dataMode !== 'REAL_SCIENTIFIC') return;
-    // Chlorophyll is not available from current ERDDAP endpoints; skip re-fetch
-    if (activeVariable === 'chlorophyll_a') {
-      setSourceStatus('UNAVAILABLE');
-      return;
+    const curr = scientificSelection;
+    const prev = prevSelection.current;
+    
+    // If spatial bounds, depth, variable, or time value changed, refetch relevant subsets
+    if (curr.bounds !== prev.bounds || curr.timeValue !== prev.timeValue || curr.depthMeters !== prev.depthMeters || curr.variable !== prev.variable) {
+       // Clear scalar fields if variable changed so stale map doesn't show
+       if (curr.variable !== prev.variable || curr.depthMeters !== prev.depthMeters) {
+         globalOceanGridStore.removeGridByVariable(prev.variable);
+       }
+       // Fetch relevant grids
+       fetchModelGrid(curr);
+       if (curr.variable === 'ocean_current_velocity' || curr.depthMeters !== prev.depthMeters || curr.bounds !== prev.bounds || layers.currentVectors || layers.particleFlow) {
+         fetchCurrentVectors(curr);
+       }
+       if (curr.bounds !== prev.bounds) {
+         fetchArgo(curr); // re-fetch profiles in new bounds
+       }
     }
-    // Current velocity uses the vector grid, not scalar — but still needs to trigger
-    // GlobeViewer re-render to show vector/particle layers
-    if (activeVariable === 'ocean_current_velocity') {
-      setSourceStatus('LIVE');
-      return;
+    prevSelection.current = curr;
+  }, [scientificSelection, dataMode, fetchModelGrid, fetchCurrentVectors, fetchArgo, layers.currentVectors, layers.particleFlow]);
+
+  // If current layers are enabled but grid is missing, ensure fetch
+  useEffect(() => {
+    if (dataMode !== 'REAL_SCIENTIFIC') return;
+    if (layers.currentVectors || layers.particleFlow) {
+      const all = globalOceanGridStore.getAll();
+      const hasVector = all.some(g => g.kind === 'CANONICAL_GRID_VECTOR');
+      if (!hasVector) {
+        fetchCurrentVectors(scientificSelection);
+      }
     }
-    setSourceStatus('FETCHING');
-    fetchModelGrid(activeVariable, activeDepthMeters).then(() => {
-      // Bump sourceStatus to trigger GlobeViewer useEffect re-run
-      setSourceStatus('LIVE');
-    });
-  }, [activeVariable, activeDepthMeters, dataMode, fetchModelGrid]);
+  }, [layers.currentVectors, layers.particleFlow, dataMode, scientificSelection, fetchCurrentVectors]);
 
   // Timeline Step Timer
   useEffect(() => {
     if (!isPlayingTimeline) return;
     const timer = setInterval(() => {
-      setActiveTimeStep((prev) => (prev + 1) % 4);
+      setScientificSelection((prev) => {
+        const caps = DATASET_CAPABILITIES[prev.variable];
+        if (!caps || !caps.supportedTimes || caps.supportedTimes.length === 0) return prev;
+        const currentIndex = caps.supportedTimes.findIndex(t => t.value === prev.timeValue);
+        const nextIndex = (currentIndex + 1) % caps.supportedTimes.length;
+        return { ...prev, timeValue: caps.supportedTimes[nextIndex].value };
+      });
     }, 2500);
     return () => clearInterval(timer);
   }, [isPlayingTimeline]);
 
-  // Dynamic Color Scale Manager instance
+  // Derived state helpers for UI
+  const activeVariable = scientificSelection.variable;
+  const activeDepthMeters = scientificSelection.depthMeters;
+  const activeRegion = scientificSelection.regionKey;
+  
+  // For backward compatibility with TimelineControl which might still use index:
+  const caps = DATASET_CAPABILITIES[scientificSelection.variable];
+  const activeTimeStep = caps && caps.supportedTimes ? caps.supportedTimes.findIndex(t => t.value === scientificSelection.timeValue) : 0;
+  
+  const setActiveVariable = useCallback((v) => {
+    setScientificSelection(s => ({ ...s, variable: v }));
+    if (v === 'ocean_current_velocity') {
+      setLayers(l => ({ ...l, currentVectors: true }));
+    }
+  }, []);
+  const setActiveDepthMeters = useCallback((d) => setScientificSelection(s => ({ ...s, depthMeters: d })), []);
+  const setActiveRegion = useCallback((rKey) => setScientificSelection(s => ({ ...s, regionKey: rKey, bounds: OCEAN_REGIONS[rKey].dataBounds })), []);
+  const setAnalysisLocation = useCallback(async (locInput) => {
+    if (!locInput) return;
+    const lat = typeof locInput.latitude === 'number' ? locInput.latitude : locInput.lat;
+    const lon = typeof locInput.longitude === 'number' ? locInput.longitude : locInput.lon;
+    if (typeof lat !== 'number' || typeof lon !== 'number' || isNaN(lat) || isNaN(lon)) return;
+
+    const analysisGen = ++analysisGenRef.current;
+
+    // Ocean vs Land verification
+    const oceanCheck = isOceanLocation(lat, lon);
+    if (!oceanCheck.isOcean) {
+      setAnalysisFeedback({ type: 'warning', message: oceanCheck.reason || 'Selected point is on land. Please click an ocean region to investigate oceanographic data.' });
+      setTimeout(() => setAnalysisFeedback(null), 4500);
+      return;
+    }
+
+    const bounds = getAnalysisBounds({ latitude: lat, longitude: lon, radiusDeg: 3.0 });
+    const newLoc = createAnalysisLocation({
+      latitude: lat,
+      longitude: lon,
+      source: locInput.source || AnalysisLocationSource.CLICK,
+      bounds,
+      status: AnalysisStatus.ANALYZING,
+    });
+
+    setAnalysisLocationState(newLoc);
+    setAnalysisFeedback(null);
+    setScientificSelection(s => ({ ...s, location: { lat, lon }, bounds }));
+
+    // Keep up to 5 unique recent locations in memory
+    setAnalysisHistory(prev => {
+      const filtered = prev.filter(item =>
+        Math.abs(item.latitude - newLoc.latitude) > 0.05 || Math.abs(item.longitude - newLoc.longitude) > 0.05
+      );
+      return [newLoc, ...filtered].slice(0, 5);
+    });
+
+    // Check if current grid in OceanGridStore covers this location
+    const allGrids = globalOceanGridStore.getAll();
+    const scalarGrid = allGrids.find(g => g.kind === 'CANONICAL_GRID_SCALAR' && g.variable === scientificSelection.variable);
+
+    const isCoveredByScalar = scalarGrid && scalarGrid.coordinates?.bbox &&
+      newLoc.latitude >= scalarGrid.coordinates.bbox.minLat &&
+      newLoc.latitude <= scalarGrid.coordinates.bbox.maxLat &&
+      newLoc.longitude >= scalarGrid.coordinates.bbox.minLon &&
+      newLoc.longitude <= scalarGrid.coordinates.bbox.maxLon;
+
+    if (isCoveredByScalar) {
+      if (analysisGenRef.current === analysisGen) {
+        setAnalysisLocationState(loc => (loc && loc.selectedAt === newLoc.selectedAt ? { ...loc, status: AnalysisStatus.READY } : loc));
+      }
+      return;
+    }
+
+    // If not covered, trigger bounded fetch with request cancellation
+    try {
+      const selectionForLocation = {
+        ...scientificSelection,
+        bounds,
+      };
+
+      await Promise.all([
+        fetchModelGrid(selectionForLocation),
+        fetchCurrentVectors(selectionForLocation),
+        fetchArgo(selectionForLocation),
+      ]);
+
+      if (analysisGenRef.current !== analysisGen) return;
+
+      setAnalysisLocationState(loc => (loc && loc.selectedAt === newLoc.selectedAt ? { ...loc, status: AnalysisStatus.READY } : loc));
+    } catch (_err) {
+      if (analysisGenRef.current !== analysisGen) return;
+      setAnalysisLocationState(loc => (loc && loc.selectedAt === newLoc.selectedAt ? { ...loc, status: AnalysisStatus.PARTIAL } : loc));
+    }
+  }, [scientificSelection, fetchModelGrid, fetchCurrentVectors, fetchArgo]);
+
+  const clearAnalysis = useCallback(() => {
+    setAnalysisLocationState(null);
+    setAnalysisFeedback(null);
+  }, []);
+
+  const sampleModelValues = useCallback(() => {
+    if (!analysisLocation) return null;
+    return sampleAnalysisLocation(analysisLocation, globalOceanGridStore, scientificSelection.depthMeters);
+  }, [analysisLocation, scientificSelection.depthMeters]);
+
+  const getNearbyObservations = useCallback((radiusKm = 500) => {
+    if (!analysisLocation) return { nearbyProfiles: [], nearest: null, counts: { argo: 0, glider: 0, ctd: 0, bgc: 0, total: 0 } };
+    return findNearbyObservations(analysisLocation, globalOceanProfileStore.getAll(), radiusKm);
+  }, [analysisLocation]);
+
+  const setProbedCoordinate = useCallback((loc) => {
+    if (!loc) return;
+    const lat = typeof loc.latitude === 'number' ? loc.latitude : loc.lat;
+    const lon = typeof loc.longitude === 'number' ? loc.longitude : loc.lon;
+    setAnalysisLocation({ latitude: lat, longitude: lon, source: loc.source || AnalysisLocationSource.CLICK });
+  }, [setAnalysisLocation]);
+
   const colorScaleManager = new ColorScaleManager({
     variableId: activeVariable,
     colormapId: activeColormap,
@@ -258,50 +445,36 @@ export function AppProvider({ children }) {
   return (
     <AppContext.Provider
       value={{
-        presentationMode,
-        setPresentationMode,
-        dataMode,
-        setDataMode,
-        sourceStatus,
-        activeVariable,
-        setActiveVariable,
-        activeColormap,
-        setActiveColormap,
-        activeDepthMeters,
-        setActiveDepthMeters,
-        activeTimeStep,
-        setActiveTimeStep,
-        isPlayingTimeline,
-        setIsPlayingTimeline,
-        activeRegion,
-        setActiveRegion,
-        selectedProfile,
-        setSelectedProfile,
-        probedCoordinate,
-        setProbedCoordinate,
-        selectedPlatformType,
-        setSelectedPlatformType,
-        colorScaleSettings,
-        setColorScaleSettings,
+        presentationMode, setPresentationMode,
+        dataMode, setDataMode,
+        scientificSelection, setScientificSelection,
+        sourceStatuses, setSourceStatuses,
+        activeVariable, setActiveVariable,
+        activeColormap, setActiveColormap,
+        activeDepthMeters, setActiveDepthMeters,
+        activeTimeStep, 
+        isPlayingTimeline, setIsPlayingTimeline,
+        activeRegion, setActiveRegion,
+        selectedProfile, setSelectedProfile,
+        probedCoordinate: scientificSelection.location, setProbedCoordinate,
+        analysisLocation, setAnalysisLocation,
+        analysisHistory,
+        analysisFeedback, setAnalysisFeedback,
+        clearAnalysis,
+        sampleModelValues,
+        getNearbyObservations,
+        selectedPlatformType, setSelectedPlatformType,
+        colorScaleSettings, setColorScaleSettings,
         colorScaleManager,
-        colorbarModalOpen,
-        setColorbarModalOpen,
-        particleBudget,
-        setParticleBudget,
-        flowSpeed,
-        setFlowSpeed,
-        isXRayMode,
-      setIsXRayMode,
-      subsurfaceMode,
-        setSubsurfaceMode,
-        verticalExaggeration,
-        setVerticalExaggeration,
-        activeIsovalue,
-        setActiveIsovalue,
-        selectedTransectId,
-        setSelectedTransectId,
-        layers,
-        toggleLayer,
+        colorbarModalOpen, setColorbarModalOpen,
+        particleBudget, setParticleBudget,
+        flowSpeed, setFlowSpeed,
+        isXRayMode, setIsXRayMode,
+        subsurfaceMode, setSubsurfaceMode,
+        verticalExaggeration, setVerticalExaggeration,
+        activeIsovalue, setActiveIsovalue,
+        selectedTransectId, setSelectedTransectId,
+        layers, toggleLayer,
         loadRealScientificData,
       }}
     >
@@ -316,9 +489,6 @@ export function useOceanView() {
   return ctx;
 }
 
-/**
- * Seeds synthetic demonstration data when in SYNTHETIC mode.
- */
 function seedSyntheticDemonstrationData() {
   const lats = [5, 10, 15, 20];
   const lons = [60, 65, 70, 75, 80];

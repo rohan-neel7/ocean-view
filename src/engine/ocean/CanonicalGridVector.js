@@ -34,6 +34,7 @@ export function createCanonicalGridVector({
   sourceMode = SourceMode.LIVE,
   temporalState = TemporalClassification.FORECAST,
   timestamp,
+  variable = 'ocean_current_velocity',
   unit = 'm/s',
   dimensions,
   latitudes,
@@ -104,6 +105,7 @@ export function createCanonicalGridVector({
     sourceMode,
     temporalState,
     timestamp: normTimestamp,
+    variable: variable || 'ocean_current_velocity',
     unit,
     dataState,
     dimensions: {

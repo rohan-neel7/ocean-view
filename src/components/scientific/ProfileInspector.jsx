@@ -7,10 +7,11 @@
 import React, { useState } from 'react';
 import { X, Radio, BarChart2, ShieldCheck, Database, Compass, Navigation, Anchor, Dna, Info } from 'lucide-react';
 import { useOceanView } from '../../app/AppContext.jsx';
+import { globalCameraController } from '../../engine/rendering/CentralizedCameraController.js';
 import { globalOceanGridStore, compareProfileAgainstModel } from '../../engine/index.js';
 
-export default function ProfileInspector() {
-  const { selectedProfile, setSelectedProfile, activeVariable, presentationMode } = useOceanView();
+export default function ProfileInspector({ isDocked = false, showHeader = true }) {
+  const { selectedProfile, setSelectedProfile, activeVariable, presentationMode, analysisLocation } = useOceanView();
   const [selectedChannel, setSelectedChannel] = useState(null);
 
   if (!selectedProfile) return null;
@@ -63,47 +64,95 @@ export default function ProfileInspector() {
 
   const badge = getPlatformBadge();
 
-  return (
-    <div
-      className="oceanview-inspector glass-panel-elevated"
-      style={{
+  const containerStyle = isDocked
+    ? {
+        fontSize: '11px',
+        display: 'flex',
+        flexDirection: 'column',
+      }
+    : {
         padding: '16px',
         top: '76px',
         right: '16px',
-        width: '360px',
-        maxHeight: 'calc(100vh - 180px)',
+        width: 'min(320px, calc(100vw - 32px))',
+        maxHeight: 'calc(100vh - 160px)',
         display: 'flex',
         flexDirection: 'column',
-      }}
+        position: 'absolute',
+        zIndex: 40,
+        overflowY: 'auto',
+      };
+
+  return (
+    <div
+      className={isDocked ? '' : 'oceanview-inspector glass-panel-elevated'}
+      style={containerStyle}
     >
       {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
-          paddingBottom: '10px',
-          marginBottom: '12px',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ color: badge.color }}>{badge.icon}</div>
-          <div>
-            <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#f8fafc', margin: 0 }}>{platformId}</h3>
-            <span style={{ fontSize: '10px', color: badge.color, fontWeight: 600, textTransform: 'uppercase' }}>
-              {badge.label}
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={() => setSelectedProfile(null)}
-          style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
-          title="Close Inspector"
+      {showHeader && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            paddingBottom: '10px',
+            marginBottom: '12px',
+          }}
         >
-          <X style={{ width: '16px', height: '16px' }} />
-        </button>
-      </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ color: badge.color }}>{badge.icon}</div>
+            <div>
+              <h3 style={{ fontSize: '13px', fontWeight: 'bold', color: '#f8fafc', margin: 0 }}>{platformId}</h3>
+              <span style={{ fontSize: '10px', color: badge.color, fontWeight: 600, textTransform: 'uppercase' }}>
+                {badge.label}
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setSelectedProfile(null)}
+            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+            title="Close Inspector"
+          >
+            <X style={{ width: '16px', height: '16px' }} />
+          </button>
+        </div>
+      )}
+
+      {/* Active Analysis Context Banner & Jump Back */}
+      {analysisLocation && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(6,182,212,0.12)',
+            border: '1px solid rgba(6,182,212,0.3)',
+            borderRadius: '6px',
+            padding: '6px 10px',
+            marginBottom: '10px',
+            fontSize: '11px',
+          }}
+        >
+          <div style={{ color: '#cbd5e1' }}>
+            <span style={{ color: '#38bdf8', fontWeight: 600 }}>Analysis: </span>
+            <span style={{ fontFamily: 'var(--font-mono)' }}>{analysisLocation.formatted}</span>
+          </div>
+          <button
+            onClick={() => {
+              globalCameraController.spiralIn(
+                { lat: analysisLocation.latitude, lon: analysisLocation.longitude },
+                800000
+              );
+            }}
+            className="btn-sci"
+            style={{ padding: '3px 8px', fontSize: '10px' }}
+            title="Return camera to analysis point"
+          >
+            Back to Point
+          </button>
+        </div>
+      )}
 
       {/* Metadata Readout */}
       <div

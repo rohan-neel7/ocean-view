@@ -16,6 +16,7 @@
 import * as Cesium from 'cesium';
 import { sampleColormap } from '../color/scientificColorMaps.js';
 import { governorRequestRender } from '../../engine/rendering/renderGovernor.js';
+import { toCesiumRenderAltitude } from '../../engine/spatial/depthCoordinates.js';
 
 export class VerticalTransectLayer {
   constructor(viewer) {
@@ -83,9 +84,9 @@ export class VerticalTransectLayer {
         const colorHex = sampleColormap(colormapKey, normVal);
         const cColor = Cesium.Color.fromCssColorString(colorHex).withAlpha(0.90);
 
-        // 4 Quad vertices (depth exaggerated negatively below sea surface)
-        const alt0 = -z0 * this.exaggerationFactor;
-        const alt1 = -z1 * this.exaggerationFactor;
+        // 4 Quad vertices (depth exaggerated negatively below sea surface via coordinate transform)
+        const alt0 = toCesiumRenderAltitude(z0, { verticalExaggeration: this.exaggerationFactor });
+        const alt1 = toCesiumRenderAltitude(z1, { verticalExaggeration: this.exaggerationFactor });
 
         const p0 = Cesium.Cartesian3.fromDegrees(st0.lon, st0.lat, alt0);
         const p1 = Cesium.Cartesian3.fromDegrees(st1.lon, st1.lat, alt0);

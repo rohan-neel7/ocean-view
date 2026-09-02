@@ -17,7 +17,9 @@ import { setupGlobeKeyboardNavigation } from '../../engine/rendering/globeNaviga
 import { extractVerticalSection } from '../../engine/ocean/VerticalSectionEngine.js';
 import { extractIsosurface } from '../../engine/ocean/IsosurfaceEngine.js';
 import { SCIENTIFIC_TRANSECTS } from '../scientific/SubsurfaceWorkstation.jsx';
-import { teardownRenderGovernor } from '../../engine/rendering/renderGovernor.js';
+import * as Cesium from 'cesium';
+import { teardownRenderGovernor, governorRequestRender } from '../../engine/rendering/renderGovernor.js';
+import { globalLifecycleTracker } from '../../engine/rendering/cesiumLifecycleTracker.js';
 
 import ScopeMask from '../hud/ScopeMask.jsx';
 import GlobeToolRail from './GlobeToolRail.jsx';
@@ -35,13 +37,13 @@ export default function GlobeViewer() {
   const particleLayerRef = useRef(null);
   const transectLayerRef = useRef(null);
   const isosurfaceLayerRef = useRef(null);
+  const basemapControllerRef = useRef(null);
+  const orbitControllerRef = useRef(null);
+  const analysisMarkerDataSourceRef = useRef(null);
 
-  // Controllers that are passed as props to child components are stored in state
-  // (not refs) so that React can detect them as stable values for rendering.
   const [bloomEffect, setBloomEffect] = useState(null);
   const [orbitController, setOrbitController] = useState(null);
   const [basemapController, setBasemapController] = useState(null);
-
   const [isViewerReady, setIsViewerReady] = useState(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState(false);
 
@@ -50,7 +52,7 @@ export default function GlobeViewer() {
     activeColormap,
     activeDepthMeters,
     dataMode,
-    sourceStatus,
+    sourceStatuses,
     layers,
     colorScaleSettings,
     particleBudget,
@@ -63,13 +65,34 @@ export default function GlobeViewer() {
     selectedProfile,
     setSelectedProfile,
     setProbedCoordinate,
+    analysisLocation,
+    setAnalysisLocation,
+    setAnalysisFeedback,
   } = useOceanView();
 
   const handleToggleShortcuts = useCallback(() => {
     setShortcutsModalOpen((prev) => !prev);
   }, []);
 
-  // Initialize Cesium Viewer, Visualizers & Cinematic Controllers
+  // Mutable ref for interaction callbacks to prevent effect re-triggers
+  const handlersRef = useRef({
+    setSelectedProfile,
+    setProbedCoordinate,
+    setAnalysisLocation,
+    setAnalysisFeedback,
+    handleToggleShortcuts,
+  });
+  useEffect(() => {
+    handlersRef.current = {
+      setSelectedProfile,
+      setProbedCoordinate,
+      setAnalysisLocation,
+      setAnalysisFeedback,
+      handleToggleShortcuts,
+    };
+  });
+
+  // Single Authoritative Cesium Viewer Lifecycle (Mount & Unmount Only)
   useEffect(() => {
     if (!containerRef.current || viewerRef.current) return;
 
@@ -77,10 +100,13 @@ export default function GlobeViewer() {
     viewerRef.current = viewer;
     globalCameraController.setViewer(viewer);
 
-    // Initialize Cinematic & Layer Controllers (stored in state for prop stability)
     const bloom = new OceanBloomEffect(viewer);
     const orbit = new OrbitController(viewer);
     const basemap = new BasemapController(viewer);
+
+    orbitControllerRef.current = orbit;
+    basemapControllerRef.current = basemap;
+
     setBloomEffect(bloom);
     setOrbitController(orbit);
     setBasemapController(basemap);
@@ -92,60 +118,143 @@ export default function GlobeViewer() {
     transectLayerRef.current = new VerticalTransectLayer(viewer);
     isosurfaceLayerRef.current = new SubvolumeIsosurfaceLayer(viewer);
 
-    // Attach Interaction Handler (Pointer Selection & Probe)
     const cleanupInteraction = setupGlobeInteraction(viewer, {
-      onProfileSelect: (profile) => setSelectedProfile(profile),
-      onCoordinateProbe: (coord) => setProbedCoordinate(coord),
+      onProfileSelect: (profile) => handlersRef.current.setSelectedProfile(profile),
+      onCoordinateProbe: (coord) => handlersRef.current.setProbedCoordinate(coord),
+      onAnalysisLocationSelect: (loc) => handlersRef.current.setAnalysisLocation(loc),
+      onLandClick: (fb) => handlersRef.current.setAnalysisFeedback?.({ type: 'warning', message: fb.reason }),
     });
 
-    // Attach Global Keyboard Navigation Hotkeys
     const cleanupKeyboard = setupGlobeKeyboardNavigation({
-      onToggleOrbit: () => orbit?.toggle(),
-      onToggleShortcutsModal: () => handleToggleShortcuts(),
+      onToggleOrbit: () => orbitControllerRef.current?.toggle(),
+      onToggleShortcutsModal: () => handlersRef.current.handleToggleShortcuts(),
     });
 
     setIsViewerReady(true);
 
     return () => {
+      setIsViewerReady(false);
       cleanupKeyboard();
       cleanupInteraction();
-      orbit?.stop();
-      if (particleLayerRef.current) particleLayerRef.current.stop();
-      if (vectorLayerRef.current) vectorLayerRef.current.clear();
-      if (transectLayerRef.current) transectLayerRef.current.clear();
-      if (isosurfaceLayerRef.current) isosurfaceLayerRef.current.clear();
+
+      if (analysisMarkerDataSourceRef.current) {
+        if (viewerRef.current && !viewerRef.current.isDestroyed?.()) {
+          viewerRef.current.dataSources.remove(analysisMarkerDataSourceRef.current, true);
+        }
+        analysisMarkerDataSourceRef.current = null;
+      }
+
+      if (orbitControllerRef.current) {
+        orbitControllerRef.current.destroy();
+        orbitControllerRef.current = null;
+      }
+      if (particleLayerRef.current) {
+        particleLayerRef.current.destroy();
+        particleLayerRef.current = null;
+      }
+      if (vectorLayerRef.current) {
+        vectorLayerRef.current.clear();
+        vectorLayerRef.current = null;
+      }
+      if (transectLayerRef.current) {
+        transectLayerRef.current.clear();
+        transectLayerRef.current = null;
+      }
+      if (isosurfaceLayerRef.current) {
+        isosurfaceLayerRef.current.clear();
+        isosurfaceLayerRef.current = null;
+      }
+      if (scalarLayerRef.current) {
+        scalarLayerRef.current.remove();
+        scalarLayerRef.current = null;
+      }
+      if (profileLayerRef.current) {
+        profileLayerRef.current.clear();
+        profileLayerRef.current = null;
+      }
+      if (basemapControllerRef.current) {
+        basemapControllerRef.current.destroy();
+        basemapControllerRef.current = null;
+      }
+
       teardownRenderGovernor();
-      if (viewerRef.current && !viewerRef.current.isDestroyed()) {
+
+      if (viewerRef.current && !viewerRef.current.isDestroyed?.()) {
+        globalLifecycleTracker.trackViewerDestroyed(viewerRef.current);
         viewerRef.current.destroy();
         viewerRef.current = null;
       }
     };
-  }, [setSelectedProfile, setProbedCoordinate, handleToggleShortcuts]);
+  }, []); // Run strictly once on mount
 
-  // Fly camera to selected Argo/CTD/Glider profile
+  // Focus on selected profile cast without viewer recreation
   useEffect(() => {
     if (selectedProfile?.location) {
       globalCameraController.focusProfile(selectedProfile);
     }
   }, [selectedProfile]);
 
-  // Sync Scalar Grid Layer (Horizontal Slice)
+  // Dedicated Analysis Location visual marker
+  useEffect(() => {
+    if (!viewerRef.current || viewerRef.current.isDestroyed?.()) return;
+
+    if (!analysisMarkerDataSourceRef.current) {
+      const ds = new Cesium.CustomDataSource('AnalysisLocationMarker');
+      viewerRef.current.dataSources.add(ds);
+      analysisMarkerDataSourceRef.current = ds;
+    }
+
+    const ds = analysisMarkerDataSourceRef.current;
+    ds.entities.removeAll();
+
+    if (analysisLocation) {
+      const { latitude: lat, longitude: lon } = analysisLocation;
+      const renderAltitude = 15.0; // Elevation above ocean surface
+
+      // 1. Center target dot
+      ds.entities.add({
+        id: 'analysis_location_marker',
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, renderAltitude),
+        point: {
+          pixelSize: 11,
+          color: Cesium.Color.fromCssColorString('#06b6d4'),
+          outlineColor: Cesium.Color.WHITE,
+          outlineWidth: 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+
+      // 2. Target ring
+      ds.entities.add({
+        id: 'analysis_location_ring',
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, renderAltitude),
+        ellipse: {
+          semiMajorAxis: 30000.0,
+          semiMinorAxis: 30000.0,
+          material: Cesium.Color.fromCssColorString('#06b6d4').withAlpha(0.2),
+          outline: true,
+          outlineColor: Cesium.Color.fromCssColorString('#38bdf8'),
+          outlineWidth: 2,
+          height: renderAltitude,
+        },
+      });
+
+      governorRequestRender();
+    }
+  }, [analysisLocation]);
+
+  // Scalar Field Layer Updates
   useEffect(() => {
     if (!scalarLayerRef.current) return;
 
-    // Hide scalar field when viewing current velocity (show vector/particle instead)
-    // or when scalar field layer is disabled or in wrong subsurface mode
     if (!layers.scalarField || subsurfaceMode !== 'HORIZONTAL_SLICE' || activeVariable === 'ocean_current_velocity') {
       scalarLayerRef.current.remove();
       return;
     }
 
     const allGrids = globalOceanGridStore.getAll();
-    // Find the most recently added scalar grid that matches the active variable
     const scalarGrids = allGrids.filter((g) => g.kind === 'CANONICAL_GRID_SCALAR');
-    const scalarGrid = scalarGrids.find((g) => g.variable === activeVariable)
-      || scalarGrids[scalarGrids.length - 1]
-      || null;
+    const scalarGrid = scalarGrids.find((g) => g.variable === activeVariable) || scalarGrids[scalarGrids.length - 1] || null;
 
     if (scalarGrid) {
       const opacity = colorScaleSettings?.opacity ?? 0.85;
@@ -154,133 +263,114 @@ export default function GlobeViewer() {
         activeColormap,
         activeDepthMeters,
         opacity,
-        { min: colorScaleSettings?.min ?? null, max: colorScaleSettings?.max ?? null },
+        {
+          min: colorScaleSettings?.min ?? null,
+          max: colorScaleSettings?.max ?? null,
+        },
+        {
+          vectorVisible: layers.currentVectors,
+          particleVisible: layers.particleFlow,
+        }
       );
     } else {
-      // No data available for this variable — clear stale visualization
       scalarLayerRef.current.remove();
     }
-  }, [activeVariable, activeColormap, activeDepthMeters, dataMode, sourceStatus, layers.scalarField, subsurfaceMode, colorScaleSettings]);
+  }, [activeVariable, activeColormap, activeDepthMeters, dataMode, sourceStatuses.model, layers.scalarField, layers.currentVectors, layers.particleFlow, subsurfaceMode, colorScaleSettings]);
 
-  // Sync 3D Vertical Transect Curtain Layer
+  // Vertical Transect Section Updates
   useEffect(() => {
     if (!transectLayerRef.current) return;
-
     if (subsurfaceMode !== 'VERTICAL_TRANSECT') {
       transectLayerRef.current.clear();
       return;
     }
-
     const allGrids = globalOceanGridStore.getAll();
     const scalarGrid = allGrids.find((g) => g.kind === 'CANONICAL_GRID_SCALAR') || null;
     const currentTransect = SCIENTIFIC_TRANSECTS.find((t) => t.id === selectedTransectId) || SCIENTIFIC_TRANSECTS[0];
-
     if (scalarGrid && currentTransect) {
       const section = extractVerticalSection(scalarGrid, currentTransect, { stationCount: 36 });
       transectLayerRef.current.updateTransect(section, activeColormap, verticalExaggeration);
     }
-  }, [subsurfaceMode, selectedTransectId, verticalExaggeration, activeColormap, dataMode, sourceStatus]);
+  }, [subsurfaceMode, selectedTransectId, verticalExaggeration, activeColormap, dataMode, sourceStatuses.model]);
 
-  // Sync 3D Isosurface Layer
+  // Subvolume 3D Isosurface Updates
   useEffect(() => {
     if (!isosurfaceLayerRef.current) return;
-
     if (subsurfaceMode !== 'ISOSURFACE_3D') {
       isosurfaceLayerRef.current.clear();
       return;
     }
-
     const allGrids = globalOceanGridStore.getAll();
     const scalarGrid = allGrids.find((g) => g.kind === 'CANONICAL_GRID_SCALAR') || null;
-
     if (scalarGrid) {
       const mesh = extractIsosurface(scalarGrid, activeIsovalue, { verticalExaggeration });
       isosurfaceLayerRef.current.updateIsosurface(mesh, activeColormap);
     }
-  }, [subsurfaceMode, activeIsovalue, verticalExaggeration, activeColormap, dataMode, sourceStatus]);
+  }, [subsurfaceMode, activeIsovalue, verticalExaggeration, activeColormap, dataMode, sourceStatuses.model]);
 
-  // Sync Vector Field Glyph Layer
+  // Vector Glyphs (Currents) Updates
   useEffect(() => {
     if (!vectorLayerRef.current) return;
-
     if (!layers.currentVectors) {
       vectorLayerRef.current.clear();
       return;
     }
-
     const allGrids = globalOceanGridStore.getAll();
     const vectorGrid = allGrids.find((g) => g.kind === 'CANONICAL_GRID_VECTOR') || null;
-
     if (vectorGrid) {
-      vectorLayerRef.current.updateVectors(vectorGrid, activeDepthMeters, 1, isXRayMode);
+      vectorLayerRef.current.updateVectors(vectorGrid, activeDepthMeters, null, isXRayMode, {
+        scalarVisible: layers.scalarField && activeVariable !== 'ocean_current_velocity',
+        particleVisible: layers.particleFlow,
+      });
+    } else {
+      vectorLayerRef.current.clear();
     }
-  }, [layers.currentVectors, activeDepthMeters, isXRayMode, dataMode, sourceStatus]);
+  }, [layers.currentVectors, layers.scalarField, layers.particleFlow, activeDepthMeters, isXRayMode, dataMode, sourceStatuses.current, activeVariable]);
 
-  // Sync Particle Current Flow Layer
+  // Particle Streamlines Flow Simulation Updates
   useEffect(() => {
     if (!particleLayerRef.current) return;
-
     if (!layers.particleFlow) {
       particleLayerRef.current.stop();
       return;
     }
-
     const allGrids = globalOceanGridStore.getAll();
     const vectorGrid = allGrids.find((g) => g.kind === 'CANONICAL_GRID_VECTOR') || null;
-
     if (vectorGrid) {
       const budgetMap = { LOW: 1500, MEDIUM: 4000, HIGH: 8000 };
       const count = budgetMap[particleBudget] || 4000;
-      particleLayerRef.current.start(vectorGrid, {
-        particleCount: count,
-        flowSpeed,
-        depthMeters: activeDepthMeters,
-      });
+      particleLayerRef.current.start(vectorGrid, { particleCount: count, flowSpeed, depthMeters: activeDepthMeters });
+    } else {
+      particleLayerRef.current.stop();
     }
-  }, [layers.particleFlow, particleBudget, flowSpeed, activeDepthMeters, dataMode, sourceStatus]);
+  }, [layers.particleFlow, particleBudget, flowSpeed, activeDepthMeters, dataMode, sourceStatuses.current, activeVariable]);
 
-  // Sync Argo & In-Situ Profiles Layer
+  // In-Situ Profile Visualizer Updates
   useEffect(() => {
     if (!profileLayerRef.current) return;
-
     if (!layers.argoFloats && !layers.ctdStations && !layers.gliders) {
       profileLayerRef.current.clear();
       return;
     }
-
     const allProfiles = globalOceanProfileStore.getAll();
-    profileLayerRef.current.updateProfiles(allProfiles, isXRayMode);
-  }, [layers.argoFloats, layers.ctdStations, layers.gliders, isXRayMode, dataMode, sourceStatus]);
+    profileLayerRef.current.updateProfiles(allProfiles, isXRayMode, {
+      showArgo: layers.argoFloats,
+      showGliders: layers.gliders,
+      showCTD: layers.ctdStations,
+      selectedProfileId: selectedProfile?.wmo || selectedProfile?.id || null,
+    });
+  }, [layers.argoFloats, layers.ctdStations, layers.gliders, isXRayMode, dataMode, sourceStatuses.argo, sourceStatuses.glider, sourceStatuses.ctd, selectedProfile]);
 
   return (
     <>
       <div ref={containerRef} className="cesium-container-wrapper" />
       <ScopeMask />
-
       {isViewerReady && (
         <>
-          {/* Top-Right View Modes & Basemap Selector */}
-          <GlobeViewModes
-            bloomEffect={bloomEffect}
-            basemapController={basemapController}
-          />
-
-          {/* Right-Hand Compact Tool Rail & Orientation Compass */}
-          <GlobeToolRail
-            orbitController={orbitController}
-            onToggleShortcutsModal={handleToggleShortcuts}
-          />
-
-          {/* Bottom-Right Live Telemetry Readout */}
+          <GlobeViewModes bloomEffect={bloomEffect} basemapController={basemapController} />
+          <GlobeToolRail orbitController={orbitController} onToggleShortcutsModal={handleToggleShortcuts} />
           <GlobeTelemetry />
-
-          {/* Hotkeys Modal */}
-          <KeyboardShortcutsModal
-            isOpen={shortcutsModalOpen}
-            onClose={() => setShortcutsModalOpen(false)}
-          />
-
-          {/* Developer-Only Scientific Debug Overlay (Ctrl+Shift+D) */}
+          <KeyboardShortcutsModal isOpen={shortcutsModalOpen} onClose={() => setShortcutsModalOpen(false)} />
           <ScientificDebugOverlay
             scalarLayer={scalarLayerRef}
             vectorLayer={vectorLayerRef}

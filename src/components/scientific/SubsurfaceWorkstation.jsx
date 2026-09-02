@@ -23,7 +23,7 @@ export const SCIENTIFIC_TRANSECTS = [
   },
 ];
 
-export default function SubsurfaceWorkstation() {
+export default function SubsurfaceWorkstation({ isDocked = false, showHeader = true }) {
   const {
     subsurfaceMode,
     setSubsurfaceMode,
@@ -84,41 +84,63 @@ export default function SubsurfaceWorkstation() {
     return { mld, surfaceDensity };
   }, [selectedProfile]);
 
+  const containerStyle = isDocked
+    ? {
+        display: 'flex',
+        flexDirection: 'column',
+      }
+    : {
+        position: 'absolute',
+        bottom: '84px',
+        left: '16px',
+        width: 'min(340px, calc(100vw - 32px))',
+        maxHeight: 'calc(100vh - 160px)',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: '12px',
+        zIndex: 40,
+        fontFamily: 'var(--font-mono)',
+        fontSize: '11px',
+        overflowY: 'auto',
+      };
+
   return (
-    <div className="oceanview-subsurface-panel glass-panel-elevated">
+    <div className={isDocked ? '' : 'oceanview-subsurface-panel glass-panel-elevated'} style={containerStyle}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px', marginBottom: '8px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#f8fafc' }}>
-          <Layers style={{ width: '16px', height: '16px', color: '#38bdf8' }} />
-          <span>SUBSURFACE 3D WORKSTATION</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          {!isMinimized && ['TRANSECT', 'COMPARISON', 'PHYSICS'].map((tab) => (
+      {showHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', color: '#f8fafc' }}>
+            <Layers style={{ width: '16px', height: '16px', color: '#38bdf8' }} />
+            <span>SUBSURFACE 3D WORKSTATION</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            {!isMinimized && ['TRANSECT', 'COMPARISON', 'PHYSICS'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  fontSize: '10px',
+                  cursor: 'pointer',
+                  border: activeTab === tab ? '1px solid rgba(56,189,248,0.5)' : '1px solid transparent',
+                  background: activeTab === tab ? 'rgba(56,189,248,0.2)' : 'rgba(15,23,42,0.6)',
+                  color: activeTab === tab ? '#38bdf8' : '#94a3b8',
+                }}
+              >
+                {tab}
+              </button>
+            ))}
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '10px',
-                cursor: 'pointer',
-                border: activeTab === tab ? '1px solid rgba(56,189,248,0.5)' : '1px solid transparent',
-                background: activeTab === tab ? 'rgba(56,189,248,0.2)' : 'rgba(15,23,42,0.6)',
-                color: activeTab === tab ? '#38bdf8' : '#94a3b8',
-              }}
+              onClick={() => setIsMinimized(!isMinimized)}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
+              title={isMinimized ? 'Expand' : 'Minimize'}
             >
-              {tab}
+              {isMinimized ? <ChevronUp style={{ width: '16px', height: '16px' }} /> : <ChevronDown style={{ width: '16px', height: '16px' }} />}
             </button>
-          ))}
-          <button
-            onClick={() => setIsMinimized(!isMinimized)}
-            style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '2px' }}
-            title={isMinimized ? 'Expand' : 'Minimize'}
-          >
-            {isMinimized ? <ChevronUp style={{ width: '16px', height: '16px' }} /> : <ChevronDown style={{ width: '16px', height: '16px' }} />}
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {!isMinimized && (
         <>

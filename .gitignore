@@ -2,9 +2,15 @@ node_modules
 dist
 dist-ssr
 *.local
+# Environment & Secret files - NEVER COMMIT TO GIT
 .env
+.env.local
+.env.*.local
 .env.*
 !.env.example
+*.pem
+*.key
+*.cert
 .DS_Store
 coverage
 npm-debug.log*

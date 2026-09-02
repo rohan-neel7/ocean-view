@@ -342,26 +342,121 @@ body {
   transform: scale(1.2);
 }
 
-/* Subsurface Workstation Panel */
-.oceanview-subsurface-panel {
+/* Consolidated Inspector Docks & Sections */
+.oceanview-inspector-dock {
   position: absolute;
-  bottom: 84px;
-  left: 16px;
-  width: 380px;
-  max-height: 480px;
+  top: 76px;
+  right: 16px;
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+}
+
+.oceanview-inspector-dock::-webkit-scrollbar,
+.oceanview-left-dock::-webkit-scrollbar {
+  width: 4px;
+}
+
+.oceanview-inspector-dock::-webkit-scrollbar-thumb,
+.oceanview-left-dock::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.3);
+  border-radius: 4px;
+}
+
+.oceanview-left-dock {
+  position: absolute;
+  top: 76px;
+  left: 304px;
+  width: min(340px, calc(100vw - 320px));
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
+}
+
+.dock-section {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-elevated);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.dock-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(15, 23, 42, 0.6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.15s ease;
+}
+
+.dock-section-header:hover {
+  background: rgba(30, 41, 59, 0.7);
+}
+
+.dock-section-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.dock-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dock-section-summary {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-left: 22px;
+}
+
+.dock-section-body {
+  padding: 12px;
+  font-size: 11px;
+}
+
+/* Subsurface Workstation Panel (Legacy or inner) */
+.oceanview-subsurface-panel {
+  width: 100%;
   display: flex;
   flex-direction: column;
   padding: 12px;
-  z-index: 40;
   font-family: var(--font-mono);
   font-size: 11px;
 }
 
-/* Right Side Floating Inspectors */
+/* Floating Inspector (Legacy or inner) */
 .oceanview-inspector {
-  position: absolute;
-  top: 76px;
-  right: 16px;
-  width: 320px;
-  z-index: 40;
+  width: 100%;
 }
+

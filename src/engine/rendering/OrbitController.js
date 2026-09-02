@@ -25,6 +25,10 @@ export class OrbitController {
   start(targetCartesian, options = {}) {
     if (!this.viewer || this.viewer.isDestroyed?.()) return;
 
+    if (this.active) {
+      this.stop();
+    }
+
     // Default target: Arabian Sea center if none provided
     this.target = targetCartesian || Cesium.Cartesian3.fromDegrees(66.0, 14.0, 0.0);
     this.radius = options.radius || this.radius;
@@ -59,14 +63,24 @@ export class OrbitController {
    * Stops orbiting and restores free camera control.
    */
   stop() {
+    if (!this.active && !this._removeListener) return;
+
     this.active = false;
     releaseContinuousRender('camera-orbit');
     if (this._removeListener) {
-      this._removeListener();
+      try {
+        this._removeListener();
+      } catch (_e) {
+        // Ignored
+      }
       this._removeListener = null;
     }
     if (this.viewer && !this.viewer.isDestroyed?.()) {
-      this.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+      try {
+        this.viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+      } catch (_e) {
+        // Ignored
+      }
     }
   }
 
@@ -77,5 +91,11 @@ export class OrbitController {
       this.start(targetCartesian, options);
     }
     return this.active;
+  }
+
+  destroy() {
+    this.stop();
+    this.viewer = null;
+    this.target = null;
   }
 }

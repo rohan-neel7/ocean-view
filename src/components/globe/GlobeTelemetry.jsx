@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Compass, Activity } from 'lucide-react';
+import { Compass } from 'lucide-react';
 import { globalCameraController } from '../../engine/rendering/CentralizedCameraController.js';
+import { useOceanView } from '../../app/AppContext.jsx';
 
 export default function GlobeTelemetry() {
+  const { layers } = useOceanView();
   const [telemetry, setTelemetry] = useState({
     lat: '14.00°N',
     lon: '66.00°E',
@@ -84,6 +86,22 @@ export default function GlobeTelemetry() {
         <span>TILT: </span>
         <span style={{ color: '#f8fafc' }}>{telemetry.pitch}</span>
       </div>
+
+      {layers?.currentVectors && (
+        <div
+          style={{
+            borderLeft: '1px solid rgba(255,255,255,0.1)',
+            paddingLeft: '8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+          title="Vector Flow Calibration Scale"
+        >
+          <span style={{ color: '#94a3b8' }}>VECTOR SCALE:</span>
+          <span style={{ color: '#38bdf8', fontWeight: 'bold' }}>0.25 m/s ─────►</span>
+        </div>
+      )}
 
       <div
         style={{

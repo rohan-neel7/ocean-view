@@ -10,6 +10,7 @@
 
 // Edge table and triangulation lookup for Marching Cubes
 import { MARCHING_CUBES_TRI_TABLE, MARCHING_CUBES_EDGE_TABLE } from './marchingCubesTables.js';
+import { toCesiumRenderAltitude } from '../spatial/depthCoordinates.js';
 
 export const MAX_ISOSURFACE_CELLS = 60000;
 
@@ -57,8 +58,8 @@ export function extractIsosurface(gridScalar, isovalue, options = {}) {
 
   // Iterate across 3D grid voxel cells
   for (let d = 0; d < depthCount - 1; d++) {
-    const z0 = -depths[d] * zScale;
-    const z1 = -depths[d + 1] * zScale;
+    const z0 = toCesiumRenderAltitude(depths[d], { verticalExaggeration: zScale });
+    const z1 = toCesiumRenderAltitude(depths[d + 1], { verticalExaggeration: zScale });
 
     for (let r = 0; r < latCount - 1; r++) {
       const lat0 = lats[r];

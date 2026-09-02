@@ -2,18 +2,14 @@
  * OceanView — High-Performance Particle Current Flow Visualization Layer
  * Simulates and renders particle advection following 2D/3D (u, v) ocean velocity fields.
  *
- * CRITICAL FIX (Phase 7.6):
- *   Previous implementation used SingleTileImageryProvider (tied to globe.show).
- *   Canvas texture never updated after initial frame because toDataURL() is a snapshot.
- *   This rewrite uses Entity + RectangleGraphics with a CallbackProperty that
- *   returns the canvas on every frame, producing live animated particles.
- *
  * Invariants:
  *   - Particles advect according to oceanographic velocity vectors
  *   - Continuous render loop held strictly while animating; released on pause
+ *   - Single 2D canvas created in constructor and reused; never created per frame
  *   - Bounded particle budgets: HIGH (8k), MEDIUM (4k), LOW (1.5k)
  *   - Land-masked and out-of-bounds particles cleanly respawn
  *   - Trails color-coded by cmocean 'speed' palette
+ *   - Pristine transparent background (destination-out trail decay, no black background)
  */
 
 import * as Cesium from 'cesium';
@@ -42,15 +38,29 @@ export class ParticleCurrentLayer {
     this.particles = null; // Float32Array: [lon, lat, age, maxAge, speed]
     this.particleCount = ParticleBudgetTiers.MEDIUM;
     this.flowSpeed = 1.0;
-    this.trailLength = 0.94; // Trail fade factor (0.80 - 0.98)
+    this.trailLength = 0.94; // Trail fade factor
     this.isRunning = false;
     this.animationFrameId = null;
 
-    // Offscreen rendering canvas & texture
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = 1024;
-    this.canvas.height = 512;
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    // Offscreen rendering canvas & texture (allocated once and reused)
+    if (typeof document !== 'undefined') {
+      this.canvas = document.createElement('canvas');
+      this.canvas.width = 1024;
+      this.canvas.height = 512;
+      this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
+    } else {
+      this.canvas = { width: 1024, height: 512 };
+      this.ctx = {
+        fillStyle: '',
+        globalCompositeOperation: 'source-over',
+        fillRect() {},
+        clearRect() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        stroke() {},
+      };
+    }
 
     // Tracking
     this._rectangle = null;
@@ -99,28 +109,28 @@ export class ParticleCurrentLayer {
       this.respawnParticle(i, bbox);
     }
 
-    // Clear Canvas to transparent black
-    this.ctx.fillStyle = 'rgba(0, 0, 0, 1)';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Clear Canvas to 100% transparent
+    if (this.ctx.clearRect) {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
 
     // Setup Cesium Entity with RectangleGraphics using the live canvas as material
     this._rectangle = Cesium.Rectangle.fromDegrees(bbox.minLon, bbox.minLat, bbox.maxLon, bbox.maxLat);
 
-    // Store reference to self for the CallbackProperty closure
-    const self = this;
+    // Render height: 5m micro-offset for surface, otherwise true negative depth
+    const renderHeight = depthMeters <= 5 ? 5.0 : -depthMeters;
 
     this.entity = this.viewer.entities.add({
       rectangle: {
         coordinates: this._rectangle,
         material: new Cesium.ImageMaterialProperty({
           image: new Cesium.CallbackProperty(() => {
-            // Return the live canvas on every frame — Cesium will re-read it
-            return self.canvas;
+            return this.canvas;
           }, false),
           transparent: true,
         }),
-        height: 100.0, // Slightly above surface to clear terrain/tiles
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        height: renderHeight,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY, // Ensure particle visibility above basemap
       },
     });
 
@@ -158,22 +168,24 @@ export class ParticleCurrentLayer {
     const dLonSpan = Math.max(0.1, bbox.maxLon - bbox.minLon);
     const dLatSpan = Math.max(0.1, bbox.maxLat - bbox.minLat);
 
-    // 1. Trail Fading: Semi-transparent black overlay
-    this.ctx.globalCompositeOperation = 'source-over';
-    this.ctx.fillStyle = `rgba(0, 0, 0, ${1.0 - this.trailLength})`;
-    this.ctx.fillRect(0, 0, width, height);
+    // Fade existing particle trails to transparent using destination-out
+    if (this.ctx.globalCompositeOperation !== undefined) {
+      this.ctx.globalCompositeOperation = 'destination-out';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      this.ctx.fillRect(0, 0, width, height);
+      this.ctx.globalCompositeOperation = 'source-over';
+    }
 
-    // 2. Advect and draw particles
     const dt = 0.08 * this.flowSpeed;
 
     for (let i = 0; i < this.particleCount; i++) {
       const offset = i * 5;
-      let lon = this.particles[offset];
-      let lat = this.particles[offset + 1];
-      let age = this.particles[offset + 2];
+      const lon = this.particles[offset];
+      const lat = this.particles[offset + 1];
+      const age = this.particles[offset + 2];
       const maxAge = this.particles[offset + 3];
 
-      // Sample vector field
+      // Sample velocity vector at current particle geographic location
       const vec = sampleVectorFieldBilinear(this.activeGrid, lat, lon, this.activeDepthIdx);
 
       if (!vec || isNaN(vec.u) || isNaN(vec.v) || age >= maxAge) {
@@ -200,8 +212,8 @@ export class ParticleCurrentLayer {
       this.ctx.beginPath();
       this.ctx.moveTo(px0, py0);
       this.ctx.lineTo(px1, py1);
-      this.ctx.strokeStyle = `rgb(${cr},${cg},${cb})`;
-      this.ctx.lineWidth = 1.6;
+      this.ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.92)`;
+      this.ctx.lineWidth = 1.8;
       this.ctx.stroke();
 
       // Update particle state
@@ -214,14 +226,16 @@ export class ParticleCurrentLayer {
     // Request Cesium to re-render the scene (the CallbackProperty will return the updated canvas)
     governorRequestRender();
 
-    this.animationFrameId = requestAnimationFrame(() => this.tick());
+    if (typeof requestAnimationFrame !== 'undefined') {
+      this.animationFrameId = requestAnimationFrame(() => this.tick());
+    }
   }
 
   setParticleBudget(tierKey = 'MEDIUM') {
     const budget = ParticleBudgetTiers[tierKey] || ParticleBudgetTiers.MEDIUM;
     this.particleCount = budget;
     if (this.activeGrid) {
-      this.start(this.activeGrid, { particleCount: budget, flowSpeed: this.flowSpeed });
+      this.start(this.activeGrid, { particleCount: budget, flowSpeed: this.flowSpeed, depthMeters: this.activeGrid.coordinates.depths?.[this.activeDepthIdx] });
     }
   }
 
@@ -234,17 +248,20 @@ export class ParticleCurrentLayer {
    */
   getDebugState() {
     return {
-      layerId: 'PARTICLE_FLOW',
+      layerId: 'PARTICLE FLOW',
       enabled: this.isRunning,
       hasData: !!this.activeGrid,
       particleCount: this.particleCount,
       flowSpeed: this.flowSpeed,
+      depth: this.activeGrid?.coordinates?.depths?.[this.activeDepthIdx] ?? 5,
       depthIdx: this.activeDepthIdx,
       entityCreated: !!this.entity,
+      renderer: this.isRunning ? 'ANIMATING' : 'STOPPED',
     };
   }
 
   stop() {
+    const wasRunning = this.isRunning;
     this.isRunning = false;
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -252,11 +269,24 @@ export class ParticleCurrentLayer {
     }
 
     if (this.entity && this.viewer && !this.viewer.isDestroyed?.()) {
-      this.viewer.entities.remove(this.entity);
+      try {
+        this.viewer.entities.remove(this.entity);
+      } catch (_e) {
+        // Ignored
+      }
       this.entity = null;
     }
 
-    releaseContinuousRender('particleAnimation');
+    if (wasRunning) {
+      releaseContinuousRender('particleAnimation');
+    }
     governorRequestRender();
+  }
+
+  destroy() {
+    this.stop();
+    this.particles = null;
+    this.activeGrid = null;
+    this.viewer = null;
   }
 }

@@ -21,3 +21,7 @@ export * from './providers/index.js';
 export * from './temporal/temporalInterpolation.js';
 export * from './spatial/depthCoordinates.js';
 export * from './comparison/ModelObservationComparator.js';
+export * from './data/datasetCapabilities.js';
+export * from './rendering/scientificRenderPolicy.js';
+export * from './ocean/analysisLocation.js';
+ 

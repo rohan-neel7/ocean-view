@@ -10,7 +10,7 @@ export default function HeaderBar() {
     setActiveRegion,
     dataMode,
     setDataMode,
-    sourceStatus,
+    sourceStatuses,
     presentationMode,
     setPresentationMode,
     setColorbarModalOpen,
@@ -32,28 +32,22 @@ export default function HeaderBar() {
 
       {/* Dynamic Truthfulness Badge */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {sourceStatus === 'LIVE' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(6,78,59,0.8)', borderRadius: '6px', border: '1px solid #059669', fontSize: '11px', fontFamily: 'var(--font-mono)', color: '#6ee7b7' }}>
-            <ShieldCheck style={{ width: '14px', height: '14px', color: '#34d399' }} />
-            <span>LIVE SCIENTIFIC FEED (ERDDAP / GDAC)</span>
+        {dataMode === 'REAL_SCIENTIFIC' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(15,23,42,0.8)', borderRadius: '6px', border: '1px solid #334155', fontSize: '11px', fontFamily: 'var(--font-mono)' }}>
+            <Activity style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
+            <span style={{ color: '#e2e8f0' }}>SCIENTIFIC DATA</span>
+            <span style={{ color: '#94a3b8', marginLeft: '4px' }}>
+              [
+                Live: {Object.values(sourceStatuses).filter(s => s === 'READY').length}, 
+                Fixture: {Object.values(sourceStatuses).filter(s => s === 'FIXTURE').length},
+                Loading: {Object.values(sourceStatuses).filter(s => s === 'LOADING').length}
+              ]
+            </span>
           </div>
-        )}
-        {sourceStatus === 'FIXTURE' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(8,47,73,0.8)', borderRadius: '6px', border: '1px solid #0e7490', fontSize: '11px', fontFamily: 'var(--font-mono)', color: '#7dd3fc' }}>
-            <Database style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
-            <span>VERIFIED ARGO / SEADATANET FIXTURE</span>
-          </div>
-        )}
-        {sourceStatus === 'SYNTHETIC' && (
+        ) : (
           <div className="synthetic-banner">
             <Activity style={{ width: '14px', height: '14px' }} />
             <span>SYNTHETIC DEMONSTRATION DATA</span>
-          </div>
-        )}
-        {sourceStatus === 'FETCHING' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(15,23,42,0.8)', borderRadius: '6px', border: '1px solid #334155', fontSize: '11px', fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
-            <Activity style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
-            <span>FETCHING UPSTREAM DATA...</span>
           </div>
         )}
       </div>

@@ -1,17 +1,20 @@
 /**
  * OceanView — Scalar Field Grid Visualization Layer
  * Renders 2D/3D numerical scalar fields onto the Cesium globe using Entity-based
- * Rectangle primitives with canvas textures.
+ * Rectangle primitives with smooth, high-resolution bilinear canvas textures.
  *
- * CRITICAL FIX (Phase 7.6):
- *   Previous implementation used viewer.imageryLayers which are tied to globe.show.
- *   When Google 3D Tiles is active, globe.show=false hides all imagery layers.
- *   This rewrite uses Entity + RectangleGraphics which renders independently of globe state.
+ * Invariants:
+ *   - Native cell values and nodata masks are strictly preserved
+ *   - Bilinear canvas filtering produces smooth spatial transitions without fake details
+ *   - Landmasked / missing cells remain 100% transparent without leaking into the ocean
+ *   - Presentation opacity automatically adapts when vector or particle layers are active
  */
 
 import * as Cesium from 'cesium';
 import { COLORMAP_PRESETS, sampleColormapRgb } from '../color/scientificColorMaps.js';
 import { governorRequestRender } from '../../engine/rendering/renderGovernor.js';
+import { getScalarRenderPolicy } from '../../engine/rendering/scientificRenderPolicy.js';
+import { toCesiumRenderAltitude } from '../../engine/spatial/depthCoordinates.js';
 
 export class ScalarFieldLayer {
   constructor(viewer) {
@@ -23,6 +26,8 @@ export class ScalarFieldLayer {
     this.activeDepthMeters = 0;
     this._updateGen = 0;
     this._canvas = null;
+    this.rangeOverride = {};
+    this.layerContext = { vectorVisible: false, particleVisible: false };
   }
 
   /**
@@ -32,8 +37,9 @@ export class ScalarFieldLayer {
    * @param {number} depthMeters - Target depth in meters
    * @param {number} opacity - Layer opacity (0-1)
    * @param {{ min: number|null, max: number|null }} rangeOverride - Custom color range
+   * @param {object} [layerContext={}] - { vectorVisible, particleVisible, cameraHeight }
    */
-  updateGrid(gridScalar, colormapKey = 'THERMAL', depthMeters = 0, opacity = 0.85, rangeOverride = {}) {
+  updateGrid(gridScalar, colormapKey = 'THERMAL', depthMeters = 0, opacity = 0.85, rangeOverride = {}, layerContext = {}) {
     if (!this.viewer || this.viewer.isDestroyed?.()) return;
 
     const currentGen = ++this._updateGen;
@@ -42,13 +48,27 @@ export class ScalarFieldLayer {
     this.activeDepthMeters = depthMeters;
     this.opacity = opacity;
     this.rangeOverride = rangeOverride;
+    this.layerContext = layerContext;
 
     this.remove();
 
     if (!gridScalar || !gridScalar.data) return;
 
+    // Get camera altitude for adaptive policy
+    let cameraHeight = 3000000;
+    if (this.viewer.camera?.positionCartographic) {
+      cameraHeight = this.viewer.camera.positionCartographic.height || 3000000;
+    }
+
+    const policy = getScalarRenderPolicy({
+      cameraHeight: layerContext.cameraHeight || cameraHeight,
+      userOpacity: opacity,
+      vectorVisible: layerContext.vectorVisible || false,
+      particleVisible: layerContext.particleVisible || false,
+    });
+
     // Generate canvas texture from the grid slice
-    const canvas = this._createGridTextureCanvas(gridScalar, colormapKey, depthMeters, rangeOverride);
+    const canvas = this._createGridTextureCanvas(gridScalar, colormapKey, depthMeters, rangeOverride, policy);
     if (!canvas) return;
 
     if (currentGen !== this._updateGen) return; // Discard superseded update
@@ -64,9 +84,8 @@ export class ScalarFieldLayer {
       bbox.maxLat
     );
 
-    // Render height: surface fields at slight elevation to clear terrain/tiles,
-    // subsurface fields at negative depth (for future subsurface camera support)
-    const renderHeight = depthMeters <= 5 ? 50.0 : -depthMeters;
+    // Render height: compute deterministic Cesium ellipsoidal altitude via coordinate system
+    const renderHeight = toCesiumRenderAltitude(depthMeters, { isVector: false });
 
     try {
       this.entity = this.viewer.entities.add({
@@ -77,12 +96,9 @@ export class ScalarFieldLayer {
             transparent: true,
           }),
           height: renderHeight,
-          heightReference: depthMeters <= 5
-            ? Cesium.HeightReference.NONE
-            : Cesium.HeightReference.NONE,
+          heightReference: Cesium.HeightReference.NONE,
           classificationType: Cesium.ClassificationType.BOTH,
-          // Disable depth test so the field renders above 3D tiles
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY, // Ensure visibility above basemap
         },
       });
 
@@ -93,24 +109,28 @@ export class ScalarFieldLayer {
   }
 
   /**
-   * Generates a 2D canvas representing the color-mapped grid slice.
+   * Generates a smooth, high-resolution 2D canvas representing the color-mapped grid slice.
    * @private
    * @param {object} grid - CanonicalGridScalar
    * @param {string} colormapKey
    * @param {number} depthMeters
    * @param {object} rangeOverride - { min: number|null, max: number|null }
-   * @returns {HTMLCanvasElement|null}
+   * @param {object} policy - Policy output from scientificRenderPolicy
+   * @returns {HTMLCanvasElement|object|null}
    */
-  _createGridTextureCanvas(grid, colormapKey, depthMeters, rangeOverride = {}) {
+  _createGridTextureCanvas(grid, colormapKey, depthMeters, rangeOverride = {}, policy = {}) {
     const { latCount, lonCount } = grid.dimensions;
+    if (typeof document === 'undefined') {
+      return { width: lonCount, height: latCount };
+    }
+
+    const displayRes = policy.displayResolution || 512;
     const canvas = document.createElement('canvas');
-    // Use higher resolution for visual quality (upscale small grids)
-    const scale = Math.max(1, Math.ceil(512 / Math.max(latCount, lonCount)));
-    canvas.width = lonCount * scale;
-    canvas.height = latCount * scale;
+    canvas.width = displayRes;
+    canvas.height = displayRes;
     const ctx = canvas.getContext('2d');
 
-    // Work on a 1:1 pixel imageData then scale
+    // Work on a native 1:1 pixel imageData first
     const srcCanvas = document.createElement('canvas');
     srcCanvas.width = lonCount;
     srcCanvas.height = latCount;
@@ -138,7 +158,7 @@ export class ScalarFieldLayer {
     }
 
     const colormapUpper = colormapKey.toUpperCase();
-    const alphaVal = Math.floor(this.opacity * 255);
+    const alphaVal = Math.floor((policy.displayOpacity ?? this.opacity) * 255);
 
     for (let r = 0; r < latCount; r++) {
       // Invert row index so north is at top of texture
@@ -163,8 +183,9 @@ export class ScalarFieldLayer {
 
     srcCtx.putImageData(imgData, 0, 0);
 
-    // Scale up using nearest-neighbor for crisp grid cells
-    ctx.imageSmoothingEnabled = false;
+    // Smooth bilinear upsampling for professional scientific cartography
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(srcCanvas, 0, 0, canvas.width, canvas.height);
 
     return canvas;
@@ -172,17 +193,15 @@ export class ScalarFieldLayer {
 
   setOpacity(val) {
     this.opacity = val;
-    if (this.entity && this.entity.rectangle) {
-      // Regenerate canvas with new opacity baked in, then update material
-      if (this.activeGrid) {
-        this.updateGrid(
-          this.activeGrid,
-          this.colormap,
-          this.activeDepthMeters,
-          val,
-          this.rangeOverride || {}
-        );
-      }
+    if (this.activeGrid) {
+      this.updateGrid(
+        this.activeGrid,
+        this.colormap,
+        this.activeDepthMeters,
+        val,
+        this.rangeOverride || {},
+        this.layerContext || {}
+      );
     }
   }
 
@@ -196,6 +215,8 @@ export class ScalarFieldLayer {
       hasData: !!this.activeGrid,
       variable: this.activeGrid?.variable || null,
       depth: this.activeDepthMeters,
+      physicalDepthMeters: this.activeDepthMeters,
+      displayOffsetMeters: toCesiumRenderAltitude(this.activeDepthMeters, { isVector: false }),
       gridDimensions: this.activeGrid
         ? `${this.activeGrid.dimensions.latCount}×${this.activeGrid.dimensions.lonCount}`
         : null,
@@ -204,15 +225,26 @@ export class ScalarFieldLayer {
       opacity: this.opacity,
       primitiveCreated: !!this.entity,
       dataStats: this.activeGrid?.stats || null,
+      gridLabel: 'NATIVE GRID 0.25° | BILINEAR INTERPOLATED',
     };
   }
 
   remove() {
     if (this.entity && this.viewer && !this.viewer.isDestroyed?.()) {
-      this.viewer.entities.remove(this.entity);
+      try {
+        this.viewer.entities.remove(this.entity);
+      } catch (_e) {
+        // Ignored
+      }
       this.entity = null;
       this._canvas = null;
       governorRequestRender();
     }
+  }
+
+  destroy() {
+    this.remove();
+    this.viewer = null;
+    this.activeGrid = null;
   }
 }

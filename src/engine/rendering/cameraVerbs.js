@@ -15,6 +15,7 @@ export const OCEAN_REGIONS = Object.freeze({
     alt: 8500000,
     heading: 0,
     pitch: -88,
+    dataBounds: { minLat: -30, maxLat: 30, minLon: 40, maxLon: 100 }
   },
   ARABIAN_SEA: {
     name: 'Arabian Sea Basin',
@@ -23,6 +24,7 @@ export const OCEAN_REGIONS = Object.freeze({
     alt: 2800000,
     heading: 0,
     pitch: -70,
+    dataBounds: { minLat: 5, maxLat: 25, minLon: 50, maxLon: 75 }
   },
   BAY_OF_BENGAL: {
     name: 'Bay of Bengal',
@@ -31,6 +33,7 @@ export const OCEAN_REGIONS = Object.freeze({
     alt: 2800000,
     heading: 0,
     pitch: -70,
+    dataBounds: { minLat: 5, maxLat: 22, minLon: 80, maxLon: 98 }
   },
   EQUATORIAL_INDIAN_OCEAN: {
     name: 'Equatorial Jet',
@@ -39,6 +42,7 @@ export const OCEAN_REGIONS = Object.freeze({
     alt: 3500000,
     heading: 0,
     pitch: -75,
+    dataBounds: { minLat: -10, maxLat: 10, minLon: 50, maxLon: 95 }
   },
   LAKSHADWEEP_MALDIVES: {
     name: 'Lakshadweep-Maldives Ridge',
@@ -47,6 +51,7 @@ export const OCEAN_REGIONS = Object.freeze({
     alt: 1200000,
     heading: 15,
     pitch: -55,
+    dataBounds: { minLat: -2, maxLat: 15, minLon: 70, maxLon: 78 }
   },
   SOUTHERN_OCEAN_SECTOR: {
     name: 'Southern Ocean Sector',
@@ -55,6 +60,7 @@ export const OCEAN_REGIONS = Object.freeze({
     alt: 4500000,
     heading: 0,
     pitch: -70,
+    dataBounds: { minLat: -60, maxLat: -30, minLon: 40, maxLon: 100 }
   },
 });
 

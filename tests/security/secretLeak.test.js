@@ -32,24 +32,41 @@ function walkSync(dir, filelist = []) {
   return filelist;
 }
 
-test('Source code should not contain hardcoded API keys or secrets', () => {
-  const srcFiles = walkSync(path.join(PROJECT_ROOT, 'src'));
-  const serverFiles = walkSync(path.join(PROJECT_ROOT, 'server'));
+test('Repository files should not contain hardcoded API keys or secrets', () => {
+  const scanDirs = ['src', 'server', 'tests', 'scripts', 'docs'];
+  const allFilesToScan = [];
 
-  const allFilesToScan = [...srcFiles, ...serverFiles];
+  for (const dir of scanDirs) {
+    allFilesToScan.push(...walkSync(path.join(PROJECT_ROOT, dir)));
+  }
+
+  // Also scan root config/entry files
+  const rootEntries = fs.readdirSync(PROJECT_ROOT, { withFileTypes: true });
+  for (const entry of rootEntries) {
+    if (entry.isFile() && !IGNORED_FILES.includes(entry.name) && (!entry.name.startsWith('.env') || entry.name === '.env.example')) {
+      const ext = path.extname(entry.name);
+      if (['.js', '.jsx', '.json', '.md', '.html'].includes(ext)) {
+        allFilesToScan.push(path.join(PROJECT_ROOT, entry.name));
+      }
+    }
+  }
+
   const leaks = [];
 
   for (const filePath of allFilesToScan) {
     const ext = path.extname(filePath);
-    // Only scan text-based files
     if (['.js', '.jsx', '.json', '.md', '.css', '.html'].includes(ext)) {
       const content = fs.readFileSync(filePath, 'utf8');
       
       const lines = content.split('\n');
       lines.forEach((line, index) => {
-        // Strip out this specific pattern to avoid false positives in comments talking about the regex
-        // E.g. skip if line contains the regex definition itself
-        if (line.includes('SENSITIVE_PATTERN') || line.includes('/^(AIza|sk-|pk_|rk_|Bearer\\s)/')) return;
+        // Strip out regex definitions and check lines to avoid false positives
+        if (
+          line.includes('SENSITIVE_PATTERN') ||
+          line.includes('AIza') && (line.includes('startsWith') || line.includes('test(') || line.includes('/^(')) ||
+          line.includes('MOCK_') ||
+          line.includes('mock_')
+        ) return;
         
         const match = line.match(SENSITIVE_PATTERN);
         if (match) {
@@ -62,8 +79,8 @@ test('Source code should not contain hardcoded API keys or secrets', () => {
   if (leaks.length > 0) {
     console.error('⚠️ SECRET LEAK DETECTED ⚠️');
     console.error(leaks.join('\n'));
-    assert.fail(`Found ${leaks.length} hardcoded secrets in source code.`);
+    assert.fail(`Found ${leaks.length} hardcoded secrets in repository files.`);
   } else {
-    assert.ok(true, 'No hardcoded secrets found in source code.');
+    assert.ok(true, 'No hardcoded secrets found in repository files.');
   }
 });

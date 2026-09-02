@@ -16,7 +16,16 @@
  * @returns {number|null} Direction in degrees [0, 360), or null if invalid
  */
 export function calculateFlowDirection(u, v) {
-  if (u === null || v === null || typeof u !== 'number' || typeof v !== 'number' || isNaN(u) || isNaN(v)) {
+  if (
+    u === null ||
+    v === null ||
+    typeof u !== 'number' ||
+    typeof v !== 'number' ||
+    isNaN(u) ||
+    isNaN(v) ||
+    u <= -9000 ||
+    v <= -9000
+  ) {
     return null;
   }
   if (u === 0 && v === 0) return 0;
@@ -34,7 +43,16 @@ export function calculateFlowDirection(u, v) {
  * @returns {number|null}
  */
 export function calculateCurrentSpeed(u, v) {
-  if (u === null || v === null || typeof u !== 'number' || typeof v !== 'number' || isNaN(u) || isNaN(v)) {
+  if (
+    u === null ||
+    v === null ||
+    typeof u !== 'number' ||
+    typeof v !== 'number' ||
+    isNaN(u) ||
+    isNaN(v) ||
+    u <= -9000 ||
+    v <= -9000
+  ) {
     return null;
   }
   return Number(Math.sqrt(u * u + v * v).toFixed(4));

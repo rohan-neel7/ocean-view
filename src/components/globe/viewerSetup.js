@@ -6,17 +6,36 @@
 import * as Cesium from 'cesium';
 import { OCEAN_REGIONS } from '../../engine/rendering/cameraVerbs.js';
 import { installRenderGovernor } from '../../engine/rendering/renderGovernor.js';
+import { globalLifecycleTracker } from '../../engine/rendering/cesiumLifecycleTracker.js';
+
+export const GOOGLE_MAPS_KEY =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_GOOGLE_MAPS_KEY) || null;
 
 export function createOceanGlobeViewer(containerElement) {
   if (!containerElement) {
     throw new Error('createOceanGlobeViewer requires a valid container DOM element');
   }
 
+  // Set default API key globally for Cesium if present
+  if (GOOGLE_MAPS_KEY && Cesium.GoogleMaps) {
+    Cesium.GoogleMaps.defaultApiKey = GOOGLE_MAPS_KEY;
+  }
+
+  // Configure Geocoder service
+  let geocoderOption = false;
+  if (GOOGLE_MAPS_KEY && typeof Cesium.GoogleGeocoderService === 'function') {
+    try {
+      geocoderOption = [new Cesium.GoogleGeocoderService({ key: GOOGLE_MAPS_KEY })];
+    } catch (_err) {
+      geocoderOption = false;
+    }
+  }
+
   const viewer = new Cesium.Viewer(containerElement, {
     animation: false,
     timeline: false,
     baseLayerPicker: false,
-    geocoder: false,
+    geocoder: geocoderOption,
     homeButton: false,
     sceneModePicker: false,
     navigationHelpButton: false,
@@ -37,16 +56,15 @@ export function createOceanGlobeViewer(containerElement) {
     },
   });
 
+  // Track viewer creation in lifecycle tracker
+  globalLifecycleTracker.trackViewerCreated(viewer);
+
   // Lock target framerate smoothly
   viewer.targetFrameRate = 60;
   viewer.resolutionScale = window.devicePixelRatio || 1.0;
 
   const scene = viewer.scene;
   const globe = scene.globe;
-
-  // Note: Imagery layer initialization is now fully delegated to BasemapController.js.
-  // We no longer instantiate CartoDB or OSM here by default to prevent "API KEY REQUIRED" issues
-  // and to allow Google Photorealistic 3D Tiles to be the true default.
 
   // Globe Baseline Shading
   globe.enableLighting = false;
