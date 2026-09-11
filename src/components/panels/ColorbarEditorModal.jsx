@@ -3,7 +3,7 @@
  * Allows interactive adjustment of palette range (min/max), linear vs logarithmic scaling, opacity, and palette reversal.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sliders, X, Check, RotateCcw, AlertTriangle } from 'lucide-react';
 import { useOceanView } from '../../app/AppContext.jsx';
 import { COLORMAP_PRESETS } from '../../visualization/color/scientificColorMaps.js';
@@ -12,8 +12,6 @@ import { getVariableMetadata } from '../../engine/ocean/VariableRegistry.js';
 export default function ColorbarEditorModal() {
   const {
     activeVariable,
-    activeColormap,
-    setActiveColormap,
     colorScaleSettings,
     setColorScaleSettings,
     colorbarModalOpen,
@@ -29,6 +27,16 @@ export default function ColorbarEditorModal() {
   const [scaleType, setScaleType] = useState(colorScaleSettings.scaleType);
   const [opacity, setOpacity] = useState(colorScaleSettings.opacity);
   const [reversed, setReversed] = useState(colorScaleSettings.reversed);
+
+  useEffect(() => {
+    if (colorbarModalOpen) {
+      setMinVal(colorScaleSettings.min ?? defaultMin);
+      setMaxVal(colorScaleSettings.max ?? defaultMax);
+      setScaleType(colorScaleSettings.scaleType);
+      setOpacity(colorScaleSettings.opacity);
+      setReversed(colorScaleSettings.reversed);
+    }
+  }, [colorbarModalOpen, colorScaleSettings, defaultMin, defaultMax]);
 
   if (!colorbarModalOpen) return null;
 

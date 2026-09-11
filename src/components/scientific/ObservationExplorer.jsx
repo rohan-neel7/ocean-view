@@ -4,7 +4,7 @@
  * Argo floats, autonomous gliders, shipboard CTD casts, and BGC platforms.
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Activity, Navigation, Anchor, Compass, Dna, Eye } from 'lucide-react';
 import { useOceanView } from '../../app/AppContext.jsx';
 import { globalOceanProfileStore } from '../../engine/index.js';
@@ -80,18 +80,16 @@ export default function ObservationExplorer() {
           <select 
             className="sci-select" 
             style={{ fontSize: '9px', padding: '2px', background: 'rgba(15,23,42,0.8)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', flex: 1 }}
+            disabled
           >
-            <option value="ALL">Region: Global</option>
-            <option value="ARABIAN_SEA">Region: Arabian Sea</option>
-            <option value="BOB">Region: Bay of Bengal</option>
+            <option value="ALL">Region: Global (PLANNED)</option>
           </select>
           <select 
             className="sci-select" 
             style={{ fontSize: '9px', padding: '2px', background: 'rgba(15,23,42,0.8)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', flex: 1 }}
+            disabled
           >
-            <option value="ALL">Depth: All</option>
-            <option value="SHALLOW">Depth: &lt; 500m</option>
-            <option value="DEEP">Depth: &gt; 500m</option>
+            <option value="ALL">Depth: All (PLANNED)</option>
           </select>
         </div>
       </div>

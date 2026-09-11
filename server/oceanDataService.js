@@ -67,6 +67,17 @@ export async function getOceanModelSlice({
   maxLon = 80.0,
   stride = 4,
 } = {}) {
+  const ALLOWED_MODEL_DATASETS = new Set(['SDC_GLO_CLIM_TS_V2_2']);
+  if (!ALLOWED_MODEL_DATASETS.has(datasetId)) {
+    throw new Error(`Invalid datasetId: ${datasetId}`);
+  }
+
+  const parsedTime = new Date(time);
+  if (isNaN(parsedTime.getTime())) {
+    throw new Error(`Invalid time: ${time}`);
+  }
+  const isoTime = parsedTime.toISOString();
+
   const cMinLat = Math.max(-80, Math.min(80, Number(minLat)));
   const cMaxLat = Math.max(-80, Math.min(80, Number(maxLat)));
   const cMinLon = Math.max(-180, Math.min(180, Number(minLon)));
@@ -74,7 +85,7 @@ export async function getOceanModelSlice({
   const cDepth = Math.max(0, Math.min(6000, Number(depth)));
   const cStride = Math.max(1, Math.min(10, parseInt(stride, 10) || 1));
 
-  const cacheKey = `model:${datasetId}:${variable}:${time}:${cDepth}:${cMinLat}:${cMaxLat}:${cMinLon}:${cMaxLon}:${cStride}`;
+  const cacheKey = `model:${datasetId}:${variable}:${isoTime}:${cDepth}:${cMinLat}:${cMaxLat}:${cMinLon}:${cMaxLon}:${cStride}`;
   if (oceanDataCache.has(cacheKey)) {
     return oceanDataCache.get(cacheKey);
   }
@@ -82,7 +93,7 @@ export async function getOceanModelSlice({
   // 1. Attempt Live ERDDAP Fetch
   try {
     const varName = variable === 'temperature' || variable === 'sea_surface_temperature' ? 'Temperature' : 'Salinity';
-    const queryPart = `${varName}[(${time}):1:(${time})][(${cDepth}):1:(${cDepth})][(${cMinLat}):${cStride}:(${cMaxLat})][(${cMinLon}):${cStride}:(${cMaxLon})]`;
+    const queryPart = `${varName}[(${isoTime}):1:(${isoTime})][(${cDepth}):1:(${cDepth})][(${cMinLat}):${cStride}:(${cMaxLat})][(${cMinLon}):${cStride}:(${cMaxLon})]`;
     const url = `https://erddap.ifremer.fr/erddap/griddap/${datasetId}.json?${encodeURIComponent(queryPart)}`;
 
     const controller = new AbortController();
@@ -125,7 +136,7 @@ export async function getOceanModelSlice({
           provider: 'SeaDataNet / Coriolis GDAC',
           variable: varName.toLowerCase() === 'temperature' ? 'sea_surface_temperature' : 'salinity',
           unit: varName.toLowerCase() === 'temperature' ? '°C' : 'PSU',
-          timestamp: time,
+          timestamp: isoTime,
           depthMeters: cDepth,
           sourceMode: 'LIVE',
           dataState: 'MODELED',
@@ -271,6 +282,17 @@ export async function getOceanCurrentSlice({
   maxLon = 80.0,
   stride = 2,
 } = {}) {
+  const ALLOWED_CURRENT_DATASETS = new Set(['ANDRO', 'INCOIS_HOOFS']);
+  if (!ALLOWED_CURRENT_DATASETS.has(datasetId)) {
+    throw new Error(`Invalid datasetId: ${datasetId}`);
+  }
+
+  const parsedTime = new Date(time);
+  if (isNaN(parsedTime.getTime())) {
+    throw new Error(`Invalid time: ${time}`);
+  }
+  const isoTime = parsedTime.toISOString();
+
   const cMinLat = Math.max(-80, Math.min(80, Number(minLat)));
   const cMaxLat = Math.max(-80, Math.min(80, Number(maxLat)));
   const cMinLon = Math.max(-180, Math.min(180, Number(minLon)));
@@ -278,7 +300,7 @@ export async function getOceanCurrentSlice({
   const cDepth = Math.max(0, Math.min(2000, Number(depth)));
   const cStride = Math.max(1, Math.min(10, parseInt(stride, 10) || 2));
 
-  const cacheKey = `current:${datasetId}:${time}:${cDepth}:${cMinLat}:${cMaxLat}:${cMinLon}:${cMaxLon}:${cStride}`;
+  const cacheKey = `current:${datasetId}:${isoTime}:${cDepth}:${cMinLat}:${cMaxLat}:${cMinLon}:${cMaxLon}:${cStride}`;
   if (oceanDataCache.has(cacheKey)) {
     return oceanDataCache.get(cacheKey);
   }
@@ -337,7 +359,7 @@ export async function getOceanCurrentSlice({
           temporalState: 'CLIMATOLOGY',
           sourceMode: 'LIVE',
           dataState: 'MODELED',
-          timestamp: time,
+          timestamp: isoTime,
           depthMeters: cDepth,
           unit: 'm/s',
           sourceUnit: 'cm/s',
@@ -436,7 +458,7 @@ export async function getOceanCurrentSlice({
     temporalState: 'CLIMATOLOGY',
     sourceMode: 'FIXTURE',
     dataState: 'MODELED',
-    timestamp: time,
+    timestamp: isoTime,
     depthMeters: cDepth,
     unit: 'm/s',
     sourceUnit: 'm/s',

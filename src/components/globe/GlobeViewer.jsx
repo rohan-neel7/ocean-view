@@ -244,6 +244,10 @@ export default function GlobeViewer() {
   }, [analysisLocation]);
 
   // Scalar Field Layer Updates
+  const csMin = colorScaleSettings?.min;
+  const csMax = colorScaleSettings?.max;
+  const csOpacity = colorScaleSettings?.opacity;
+  const modelStatus = sourceStatuses.model;
   useEffect(() => {
     if (!scalarLayerRef.current) return;
 
@@ -275,7 +279,7 @@ export default function GlobeViewer() {
     } else {
       scalarLayerRef.current.remove();
     }
-  }, [activeVariable, activeColormap, activeDepthMeters, dataMode, sourceStatuses.model, layers.scalarField, layers.currentVectors, layers.particleFlow, subsurfaceMode, colorScaleSettings]);
+  }, [activeVariable, activeColormap, activeDepthMeters, dataMode, modelStatus, layers.scalarField, layers.currentVectors, layers.particleFlow, subsurfaceMode, csMin, csMax, csOpacity]);
 
   // Vertical Transect Section Updates
   useEffect(() => {
@@ -291,7 +295,7 @@ export default function GlobeViewer() {
       const section = extractVerticalSection(scalarGrid, currentTransect, { stationCount: 36 });
       transectLayerRef.current.updateTransect(section, activeColormap, verticalExaggeration);
     }
-  }, [subsurfaceMode, selectedTransectId, verticalExaggeration, activeColormap, dataMode, sourceStatuses.model]);
+  }, [subsurfaceMode, selectedTransectId, verticalExaggeration, activeColormap, dataMode, modelStatus]);
 
   // Subvolume 3D Isosurface Updates
   useEffect(() => {
@@ -306,9 +310,10 @@ export default function GlobeViewer() {
       const mesh = extractIsosurface(scalarGrid, activeIsovalue, { verticalExaggeration });
       isosurfaceLayerRef.current.updateIsosurface(mesh, activeColormap);
     }
-  }, [subsurfaceMode, activeIsovalue, verticalExaggeration, activeColormap, dataMode, sourceStatuses.model]);
+  }, [subsurfaceMode, activeIsovalue, verticalExaggeration, activeColormap, dataMode, modelStatus]);
 
   // Vector Glyphs (Currents) Updates
+  const currentStatus = sourceStatuses.current;
   useEffect(() => {
     if (!vectorLayerRef.current) return;
     if (!layers.currentVectors) {
@@ -325,7 +330,7 @@ export default function GlobeViewer() {
     } else {
       vectorLayerRef.current.clear();
     }
-  }, [layers.currentVectors, layers.scalarField, layers.particleFlow, activeDepthMeters, isXRayMode, dataMode, sourceStatuses.current, activeVariable]);
+  }, [layers.currentVectors, layers.scalarField, layers.particleFlow, activeDepthMeters, isXRayMode, dataMode, currentStatus, activeVariable]);
 
   // Particle Streamlines Flow Simulation Updates
   useEffect(() => {
@@ -343,9 +348,12 @@ export default function GlobeViewer() {
     } else {
       particleLayerRef.current.stop();
     }
-  }, [layers.particleFlow, particleBudget, flowSpeed, activeDepthMeters, dataMode, sourceStatuses.current, activeVariable]);
+  }, [layers.particleFlow, particleBudget, flowSpeed, activeDepthMeters, dataMode, currentStatus, activeVariable]);
 
   // In-Situ Profile Visualizer Updates
+  const argoStatus = sourceStatuses.argo;
+  const gliderStatus = sourceStatuses.glider;
+  const ctdStatus = sourceStatuses.ctd;
   useEffect(() => {
     if (!profileLayerRef.current) return;
     if (!layers.argoFloats && !layers.ctdStations && !layers.gliders) {
@@ -359,7 +367,7 @@ export default function GlobeViewer() {
       showCTD: layers.ctdStations,
       selectedProfileId: selectedProfile?.wmo || selectedProfile?.id || null,
     });
-  }, [layers.argoFloats, layers.ctdStations, layers.gliders, isXRayMode, dataMode, sourceStatuses.argo, sourceStatuses.glider, sourceStatuses.ctd, selectedProfile]);
+  }, [layers.argoFloats, layers.ctdStations, layers.gliders, isXRayMode, dataMode, argoStatus, gliderStatus, ctdStatus, selectedProfile]);
 
   return (
     <>

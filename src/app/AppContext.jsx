@@ -4,7 +4,7 @@
  * variable selection, depth slicing, customizable color scales, and dual presentation modes.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   globalOceanGridStore,
   globalOceanProfileStore,
@@ -77,6 +77,12 @@ export function AppProvider({ children }) {
   const [analysisHistory, setAnalysisHistory] = useState([]);
   const [analysisFeedback, setAnalysisFeedback] = useState(null);
   const analysisGenRef = useRef(0);
+  const feedbackTimerRef = useRef(null);
+  const selectionRef = useRef(scientificSelection);
+
+  useEffect(() => {
+    selectionRef.current = scientificSelection;
+  }, [scientificSelection]);
 
   // Particle Flow Controls
   const [particleBudget, setParticleBudget] = useState('MEDIUM');
@@ -132,7 +138,7 @@ export function AppProvider({ children }) {
         setSourceStatuses(prev => ({ ...prev, model: 'ERROR' }));
       }
     } catch (_err) {
-      console.warn('[AppContext] Model grid fetch failed');
+      console.error('[AppContext] Model grid fetch failed', _err);
       setSourceStatuses(prev => ({ ...prev, model: 'ERROR' }));
     }
   }, []);
@@ -155,7 +161,8 @@ export function AppProvider({ children }) {
       } else {
         setSourceStatuses(prev => ({ ...prev, current: 'ERROR' }));
       }
-    } catch (err) {
+    } catch (_err) {
+      console.error('[AppContext] Current vectors fetch failed', _err);
       setSourceStatuses(prev => ({ ...prev, current: 'ERROR' }));
     }
   }, []);
@@ -177,7 +184,8 @@ export function AppProvider({ children }) {
       } else {
         setSourceStatuses(prev => ({ ...prev, argo: 'ERROR' }));
       }
-    } catch (err) {
+    } catch (_err) {
+      console.error('[AppContext] Argo profiles fetch failed', _err);
       setSourceStatuses(prev => ({ ...prev, argo: 'ERROR' }));
     }
   }, []);
@@ -194,7 +202,8 @@ export function AppProvider({ children }) {
       } else {
         setSourceStatuses(prev => ({ ...prev, glider: 'ERROR' }));
       }
-    } catch (err) {
+    } catch (_err) {
+      console.error('[AppContext] Glider missions fetch failed', _err);
       setSourceStatuses(prev => ({ ...prev, glider: 'ERROR' }));
     }
   }, []);
@@ -215,7 +224,8 @@ export function AppProvider({ children }) {
       } else {
         setSourceStatuses(prev => ({ ...prev, ctd: 'ERROR' }));
       }
-    } catch (err) {
+    } catch (_err) {
+      console.error('[AppContext] CTD stations fetch failed', _err);
       setSourceStatuses(prev => ({ ...prev, ctd: 'ERROR' }));
     }
   }, []);
@@ -234,7 +244,8 @@ export function AppProvider({ children }) {
       } else {
         setSourceStatuses(prev => ({ ...prev, bgc: 'ERROR' }));
       }
-    } catch (err) {
+    } catch (_err) {
+      console.error('[AppContext] BGC profiles fetch failed', _err);
       setSourceStatuses(prev => ({ ...prev, bgc: 'ERROR' }));
     }
   }, []);
@@ -261,7 +272,7 @@ export function AppProvider({ children }) {
 
   // Handle dataMode toggles or initial mount
   useEffect(() => {
-    loadRealScientificData(scientificSelection);
+    loadRealScientificData(selectionRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataMode]);
   
@@ -280,7 +291,7 @@ export function AppProvider({ children }) {
        }
        // Fetch relevant grids
        fetchModelGrid(curr);
-       if (curr.variable === 'ocean_current_velocity' || curr.depthMeters !== prev.depthMeters || curr.bounds !== prev.bounds || layers.currentVectors || layers.particleFlow) {
+       if (layers.currentVectors || layers.particleFlow) {
          fetchCurrentVectors(curr);
        }
        if (curr.bounds !== prev.bounds) {
@@ -346,7 +357,8 @@ export function AppProvider({ children }) {
     const oceanCheck = isOceanLocation(lat, lon);
     if (!oceanCheck.isOcean) {
       setAnalysisFeedback({ type: 'warning', message: oceanCheck.reason || 'Selected point is on land. Please click an ocean region to investigate oceanographic data.' });
-      setTimeout(() => setAnalysisFeedback(null), 4500);
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+      feedbackTimerRef.current = setTimeout(() => setAnalysisFeedback(null), 4500);
       return;
     }
 
@@ -373,7 +385,7 @@ export function AppProvider({ children }) {
 
     // Check if current grid in OceanGridStore covers this location
     const allGrids = globalOceanGridStore.getAll();
-    const scalarGrid = allGrids.find(g => g.kind === 'CANONICAL_GRID_SCALAR' && g.variable === scientificSelection.variable);
+    const scalarGrid = allGrids.find(g => g.kind === 'CANONICAL_GRID_SCALAR' && g.variable === selectionRef.current.variable);
 
     const isCoveredByScalar = scalarGrid && scalarGrid.coordinates?.bbox &&
       newLoc.latitude >= scalarGrid.coordinates.bbox.minLat &&
@@ -391,7 +403,7 @@ export function AppProvider({ children }) {
     // If not covered, trigger bounded fetch with request cancellation
     try {
       const selectionForLocation = {
-        ...scientificSelection,
+        ...selectionRef.current,
         bounds,
       };
 
@@ -413,6 +425,7 @@ export function AppProvider({ children }) {
   const clearAnalysis = useCallback(() => {
     setAnalysisLocationState(null);
     setAnalysisFeedback(null);
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
   }, []);
 
   const sampleModelValues = useCallback(() => {
@@ -432,7 +445,7 @@ export function AppProvider({ children }) {
     setAnalysisLocation({ latitude: lat, longitude: lon, source: loc.source || AnalysisLocationSource.CLICK });
   }, [setAnalysisLocation]);
 
-  const colorScaleManager = new ColorScaleManager({
+  const colorScaleManager = useMemo(() => new ColorScaleManager({
     variableId: activeVariable,
     colormapId: activeColormap,
     min: colorScaleSettings.min,
@@ -440,7 +453,7 @@ export function AppProvider({ children }) {
     scaleType: colorScaleSettings.scaleType,
     reversed: colorScaleSettings.reversed,
     opacity: colorScaleSettings.opacity,
-  });
+  }), [activeVariable, activeColormap, colorScaleSettings.min, colorScaleSettings.max, colorScaleSettings.scaleType, colorScaleSettings.reversed, colorScaleSettings.opacity]);
 
   return (
     <AppContext.Provider

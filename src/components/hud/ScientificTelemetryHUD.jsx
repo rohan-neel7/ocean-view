@@ -6,7 +6,7 @@ import { Target, Navigation, Layers, Compass, Sun, MapPin } from 'lucide-react';
 import { OCEAN_REGIONS } from '../../engine/rendering/cameraVerbs.js';
 
 export default function ScientificTelemetryHUD() {
-  const { activeRegion, activeVariable, layers } = useOceanView();
+  const { activeRegion, layers } = useOceanView();
   
   const [metrics, setMetrics] = useState({
     latDMS: '--°--\'--"N',
@@ -29,13 +29,18 @@ export default function ScientificTelemetryHUD() {
     return () => clearInterval(timer);
   }, []);
 
-  // Telemetry tick
+  // Telemetry event listener
   useEffect(() => {
-    const timer = setInterval(() => {
-      const viewer = globalCameraController.viewer;
-      if (!viewer || !viewer.camera) return;
+    const viewer = globalCameraController.viewer;
+    if (!viewer || !viewer.camera) return;
 
-      const camera = viewer.camera;
+    const camera = viewer.camera;
+    // Set a finer percentageChanged if needed to get smoother updates, default is 0.5 (50% of viewport)
+    // 0.05 is tighter, but event-driven instead of constant polling
+    const originalPercentage = camera.percentageChanged;
+    camera.percentageChanged = 0.05;
+    
+    const updateTelemetry = () => {
       const carto = camera.positionCartographic;
       if (!carto) return;
 
@@ -74,8 +79,15 @@ export default function ScientificTelemetryHUD() {
         pitch: pitchDeg.toFixed(1) + '°',
         heading: headingDeg.toFixed(1) + '°',
       });
-    }, 100); // 10Hz telemetry
-    return () => clearInterval(timer);
+    };
+    
+    updateTelemetry();
+    camera.changed.addEventListener(updateTelemetry);
+    
+    return () => {
+      camera.changed.removeEventListener(updateTelemetry);
+      camera.percentageChanged = originalPercentage;
+    };
   }, []);
 
   const regionName = OCEAN_REGIONS[activeRegion]?.name || 'Global Ocean';
