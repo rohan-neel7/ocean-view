@@ -104,9 +104,25 @@ export function AppProvider({ children }) {
     ctdStations: true,
     gliders: true,
     depthSlices: false,
+    weatherMarkers: true,
+    windDirections: true,
   });
 
   const toggleLayer = useCallback((layerKey) => setLayers((prev) => ({ ...prev, [layerKey]: !prev[layerKey] })), []);
+
+  // Scientific Label Density & Display Settings
+  const [labelSettings, setLabelSettings] = useState({
+    majorCities: true,
+    secondaryCities: false,
+    countryBorders: true,
+    coordinates: false,
+    flowDirection: true,
+    stations: false,
+  });
+
+  const toggleLabelSetting = useCallback((key) => {
+    setLabelSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
 
   // Helper to fetch the model scalar grid using unified selection
   const fetchModelGrid = useCallback(async (selection) => {
@@ -157,6 +173,47 @@ export function AppProvider({ children }) {
         });
         globalOceanGridStore.removeGridByVariable('ocean_current_velocity');
         globalOceanGridStore.setGrid(canonicalVector);
+
+        // Synthesize speed CanonicalGridScalar so ScalarFieldLayer can render the colormap
+        const totalCells = canonicalVector.dimensions.latCount * canonicalVector.dimensions.lonCount * (canonicalVector.dimensions.depthCount || 1);
+        const speedBuffer = new Float32Array(totalCells);
+        let minSpeed = Infinity;
+        let maxSpeed = -Infinity;
+        for (let i = 0; i < totalCells; i++) {
+          const u = canonicalVector.uData[i];
+          const v = canonicalVector.vData[i];
+          if (u === -9999 || v === -9999 || isNaN(u) || isNaN(v)) {
+            speedBuffer[i] = -9999.0;
+          } else {
+            const spd = Math.sqrt(u * u + v * v);
+            speedBuffer[i] = spd;
+            if (spd < minSpeed) minSpeed = spd;
+            if (spd > maxSpeed) maxSpeed = spd;
+          }
+        }
+        const speedScalar = createCanonicalGridScalar({
+          id: `${canonicalVector.id}:speed_scalar`,
+          source: canonicalVector.source,
+          sourceMode: canonicalVector.sourceMode,
+          variable: 'ocean_current_velocity',
+          unit: 'm/s',
+          dataState: canonicalVector.dataState,
+          timestamp: canonicalVector.timestamp,
+          dimensions: canonicalVector.dimensions,
+          latitudes: canonicalVector.coordinates.latitudes,
+          longitudes: canonicalVector.coordinates.longitudes,
+          depths: canonicalVector.coordinates.depths,
+          data: speedBuffer,
+          fillValue: -9999.0,
+          metadata: {
+            stats: {
+              min: minSpeed !== Infinity ? minSpeed : 0.0,
+              max: maxSpeed !== -Infinity ? maxSpeed : 1.2,
+            },
+          },
+        });
+        globalOceanGridStore.setGrid(speedScalar);
+
         setSourceStatuses(prev => ({ ...prev, current: currentJson.sourceMode === 'FIXTURE' ? 'FIXTURE' : 'READY' }));
       } else {
         setSourceStatuses(prev => ({ ...prev, current: 'ERROR' }));
@@ -340,9 +397,16 @@ export function AppProvider({ children }) {
   const setActiveVariable = useCallback((v) => {
     setScientificSelection(s => ({ ...s, variable: v }));
     if (v === 'ocean_current_velocity') {
-      setLayers(l => ({ ...l, currentVectors: true }));
+      setLayers(l => ({
+        ...l,
+        scalarField: true,
+        particleFlow: true,
+        windDirections: true,
+        currentVectors: false,
+      }));
+      setActiveColormap('WINDY');
     }
-  }, []);
+  }, [setActiveColormap]);
   const setActiveDepthMeters = useCallback((d) => setScientificSelection(s => ({ ...s, depthMeters: d })), []);
   const setActiveRegion = useCallback((rKey) => setScientificSelection(s => ({ ...s, regionKey: rKey, bounds: OCEAN_REGIONS[rKey].dataBounds })), []);
   const setAnalysisLocation = useCallback(async (locInput) => {
@@ -488,6 +552,7 @@ export function AppProvider({ children }) {
         activeIsovalue, setActiveIsovalue,
         selectedTransectId, setSelectedTransectId,
         layers, toggleLayer,
+        labelSettings, setLabelSettings, toggleLabelSetting,
         loadRealScientificData,
       }}
     >

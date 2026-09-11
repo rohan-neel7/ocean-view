@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff, Radio, Navigation, Compass, MapPin, Wind, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Radio, Navigation, Compass, MapPin, Wind, Sparkles, Thermometer } from 'lucide-react';
 import { useOceanView } from '../../app/AppContext.jsx';
 
 export default function LayerPanel() {
@@ -15,6 +15,8 @@ export default function LayerPanel() {
   const layerItems = [
     { key: 'scalarField', name: 'Scalar Field Grid', icon: Compass, count: '16×21' },
     { key: 'currentVectors', name: 'Velocity Vector Glyphs', icon: Wind, count: '8×11' },
+    { key: 'weatherMarkers', name: 'Temperature Markers', icon: Thermometer, count: 'Regional' },
+    { key: 'windDirections', name: 'Wind & Flow Directions', icon: Wind, count: 'Regional' },
     { key: 'particleFlow', name: 'Particle Flow Streamlines', icon: Sparkles, count: `${particleBudget} pts` },
     { key: 'argoFloats', name: 'Argo Profiling Floats', icon: Radio, count: 'Real In-Situ' },
     { key: 'gliders', name: 'Autonomous Gliders', icon: Navigation, count: '1 Mission' },

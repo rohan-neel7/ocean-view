@@ -53,6 +53,25 @@ export const COLORMAP_PRESETS = Object.freeze({
     defaultRange: [-2.5, 2.5],
     unit: 'Δ',
   },
+  WINDY: {
+    id: 'windy',
+    name: 'Windy (Atmospheric & Ocean Currents)',
+    colors: [
+      '#2e1065', // deep violet
+      '#3730a3', // indigo
+      '#1d4ed8', // vibrant blue
+      '#0284c7', // sky blue
+      '#0d9488', // cyan-teal
+      '#10b981', // mint emerald
+      '#84cc16', // lime green (matches the 24 km/h zone)
+      '#eab308', // warm yellow
+      '#f97316', // amber-orange
+      '#ef4444', // crimson red
+      '#881337', // deep red
+    ],
+    defaultRange: [0.0, 1.8],
+    unit: 'm/s',
+  },
 });
 
 /**

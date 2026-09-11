@@ -100,11 +100,12 @@ export class VectorFieldLayer {
         if (!vec || isNaN(vec.u) || isNaN(vec.v)) continue;
 
         const { u, v, speed, headingDeg } = vec;
-        if (speed < 0.003) continue; // Skip negligible zero-noise currents
+        if (speed < 0.04) continue; // Skip negligible stagnant-noise currents
 
-        // Bounded visual arrow length: between min and max visual degrees
-        const rawLen = speed * this.vectorScale;
-        const visualLen = Math.min(policy.maxVisualLengthDeg, Math.max(policy.minVisualLengthDeg, rawLen));
+        // Bounded visual arrow length: ensure clear directional readability (min 0.35 deg)
+        const clearMinStroke = Math.max(0.35, policy.minVisualLengthDeg);
+        const rawLen = speed * this.vectorScale * 1.3;
+        const visualLen = Math.min(policy.maxVisualLengthDeg, Math.max(clearMinStroke, rawLen));
         const scaleFactor = visualLen / Math.max(0.001, speed);
 
         // Scaled displacement in geographic degrees
@@ -114,9 +115,16 @@ export class VectorFieldLayer {
         const endLon = lon + dLon;
         const endLat = lat + dLat;
 
-        // Color mapped by cmocean 'speed' palette (normalized to [0, 1.0 m/s])
-        const normSpeed = Math.min(1.0, speed / 1.0);
-        const colorHex = sampleColormap('SPEED', normSpeed);
+        // Scientific Ocean Velocity Color Ramp (Calm Teal -> Amber -> Coral)
+        // Replaces blinding pale white confetti with harmonious scientific current tones
+        let colorHex;
+        if (speed < 0.25) {
+          colorHex = '#5FB291'; // Calm Teal
+        } else if (speed < 0.65) {
+          colorHex = '#C7A66A'; // Moderate Amber
+        } else {
+          colorHex = '#E05A47'; // Strong Coral Jet
+        }
         const color = Cesium.Color.fromCssColorString(colorHex);
 
         const vectorMetadata = {
@@ -146,13 +154,13 @@ export class VectorFieldLayer {
           vectorData: vectorMetadata,
         });
 
-        // 2. Directional Arrowhead geometry
+        // 2. Directional Arrowhead geometry with tapered wings
         const angle = Math.atan2(dLon * cosLat, dLat);
-        const headLen = Math.min(0.35, Math.max(0.08, visualLen * 0.36));
+        const headLen = Math.min(0.38, Math.max(0.12, visualLen * 0.38));
 
-        // Backward wings at ±150 degrees (2.618 rad) from forward velocity vector
-        const headAngle1 = angle + 2.618;
-        const headAngle2 = angle - 2.618;
+        // Backward wings at ±148 degrees (2.58 rad) from forward velocity vector
+        const headAngle1 = angle + 2.58;
+        const headAngle2 = angle - 2.58;
 
         const h1Lon = endLon + (headLen * Math.sin(headAngle1)) / cosLat;
         const h1Lat = endLat + headLen * Math.cos(headAngle1);
@@ -166,7 +174,7 @@ export class VectorFieldLayer {
               endLon, endLat, renderHeight,
               h2Lon, h2Lat, renderHeight,
             ]),
-            width: policy.headWidth,
+            width: policy.headWidth * 1.15,
             material: color,
             depthFailMaterial: color,
             arcType: Cesium.ArcType.NONE,

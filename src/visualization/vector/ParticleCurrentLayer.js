@@ -38,7 +38,7 @@ export class ParticleCurrentLayer {
     this.particles = null; // Float32Array: [lon, lat, age, maxAge, speed]
     this.particleCount = ParticleBudgetTiers.MEDIUM;
     this.flowSpeed = 1.0;
-    this.trailLength = 0.94; // Trail fade factor
+    this.trailLength = 0.965; // Extended silky trail fade factor (Windy style)
     this.isRunning = false;
     this.animationFrameId = null;
 
@@ -52,6 +52,8 @@ export class ParticleCurrentLayer {
       this.canvas = { width: 1024, height: 512 };
       this.ctx = {
         fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 1,
         globalCompositeOperation: 'source-over',
         fillRect() {},
         clearRect() {},
@@ -59,6 +61,8 @@ export class ParticleCurrentLayer {
         moveTo() {},
         lineTo() {},
         stroke() {},
+        arc() {},
+        fill() {},
       };
     }
 
@@ -158,6 +162,7 @@ export class ParticleCurrentLayer {
 
   /**
    * Simulation step: Advects particles, renders trails, and triggers Cesium re-render.
+   * Renders silky white wind/current streamlines with luminous comet heads matching Windy aesthetic.
    */
   tick() {
     if (!this.isRunning || !this.activeGrid) return;
@@ -168,10 +173,10 @@ export class ParticleCurrentLayer {
     const dLonSpan = Math.max(0.1, bbox.maxLon - bbox.minLon);
     const dLatSpan = Math.max(0.1, bbox.maxLat - bbox.minLat);
 
-    // Fade existing particle trails to transparent using destination-out
+    // Soft silky trail decay using destination-out (allows smooth extended trails without clogging)
     if (this.ctx.globalCompositeOperation !== undefined) {
       this.ctx.globalCompositeOperation = 'destination-out';
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.052)';
       this.ctx.fillRect(0, 0, width, height);
       this.ctx.globalCompositeOperation = 'source-over';
     }
@@ -205,15 +210,30 @@ export class ParticleCurrentLayer {
       const px1 = ((nextLon - bbox.minLon) / dLonSpan) * width;
       const py1 = ((bbox.maxLat - nextLat) / dLatSpan) * height;
 
-      // Draw particle line segment with interpolated color
-      const normSpeed = Math.min(1.0, vec.speed / 1.0);
-      const [cr, cg, cb] = sampleColormapRgb('SPEED', normSpeed);
+      // Check bounds
+      if (nextLon < bbox.minLon || nextLon > bbox.maxLon || nextLat < bbox.minLat || nextLat > bbox.maxLat) {
+        this.respawnParticle(i, bbox);
+        continue;
+      }
 
+      // Smooth sine bell curve for particle lifecycle (fades in, glows, fades out)
+      const lifeProgress = age / maxAge;
+      const lifeFade = Math.sin(lifeProgress * Math.PI);
+      const speedNorm = Math.min(1.0, (vec.speed || 0.1) / 0.8);
+      const alpha = Math.min(0.96, Math.max(0.15, lifeFade * (0.45 + speedNorm * 0.52)));
+
+      // 1. Draw silky streamline segment with velocity-tuned thickness and oceanic palette
       this.ctx.beginPath();
       this.ctx.moveTo(px0, py0);
       this.ctx.lineTo(px1, py1);
-      this.ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.92)`;
-      this.ctx.lineWidth = 1.8;
+
+      // Speed-graded oceanic palette: subtle teal (slow) -> luminous cyan-teal (fast)
+      // Eliminates harsh pure white confetti
+      const r = Math.round(95 + speedNorm * 65);
+      const g = Math.round(178 + speedNorm * 45);
+      const b = Math.round(160 + speedNorm * 50);
+      this.ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
+      this.ctx.lineWidth = Math.min(2.0, 1.1 + speedNorm * 0.7);
       this.ctx.stroke();
 
       // Update particle state

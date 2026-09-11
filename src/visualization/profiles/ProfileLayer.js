@@ -21,10 +21,8 @@ export class ProfileLayer {
     this.viewer = viewer;
     this.dataSource = new Cesium.CustomDataSource('OceanProfiles');
 
-    // Enable Cesium native clustering to prevent entity overload
-    this.dataSource.clustering.enabled = true;
-    this.dataSource.clustering.pixelRange = 40;
-    this.dataSource.clustering.minimumClusterSize = 3;
+    // Clustering disabled to render discrete, elegant station pins without raw number billboards
+    this.dataSource.clustering.enabled = false;
 
     this.viewer.dataSources.add(this.dataSource);
   }

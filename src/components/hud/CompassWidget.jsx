@@ -1,3 +1,8 @@
+/**
+ * OceanView — Windy-Style Compass Orientation Needle Widget
+ * Positioned in top-right corner to replicate Windy.com navigation compass.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { globalCameraController } from '../../engine/rendering/CentralizedCameraController.js';
 import { resetNorth } from '../../engine/rendering/cameraVerbs.js';
@@ -31,28 +36,29 @@ export default function CompassWidget() {
   return (
     <div
       onClick={handleClick}
-      className="glass-panel"
       style={{
         position: 'absolute',
-        top: '124px',
-        right: '16px',
-        width: '40px',
-        height: '40px',
+        top: '20px',
+        right: '20px',
+        width: '38px',
+        height: '38px',
         borderRadius: '50%',
+        background: 'rgba(255, 255, 255, 0.95)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
-        zIndex: 42,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-        border: '1px solid rgba(56, 189, 248, 0.3)',
+        zIndex: 45,
+        boxShadow: '0 3px 12px rgba(0,0,0,0.35)',
+        border: '1px solid rgba(0, 0, 0, 0.1)',
+        transition: 'transform 0.15s ease',
       }}
       title="Click to Reset North (0°)"
     >
       <div
         style={{
-          width: '28px',
-          height: '28px',
+          width: '24px',
+          height: '24px',
           borderRadius: '50%',
           position: 'relative',
           transform: `rotate(${-headingDeg}deg)`,
@@ -62,38 +68,38 @@ export default function CompassWidget() {
           justifyContent: 'center',
         }}
       >
-        {/* North Arrow Pointer */}
+        {/* Red North Arrow Pointer */}
         <div
           style={{
             position: 'absolute',
-            top: '0px',
+            top: '1px',
             width: 0,
             height: 0,
             borderLeft: '4px solid transparent',
             borderRight: '4px solid transparent',
-            borderBottom: '10px solid #fb7185', // Red North needle
+            borderBottom: '10px solid #dc2626', // Vibrant Red North needle
           }}
         />
-        {/* South Arrow Pointer */}
+        {/* Gray South Arrow Pointer */}
         <div
           style={{
             position: 'absolute',
-            bottom: '0px',
+            bottom: '1px',
             width: 0,
             height: 0,
             borderLeft: '4px solid transparent',
             borderRight: '4px solid transparent',
-            borderTop: '10px solid #94a3b8', // Gray South needle
+            borderTop: '10px solid #94a3b8', // Slate South needle
           }}
         />
         {/* Center Pivot */}
         <div
           style={{
-            width: '6px',
-            height: '6px',
+            width: '5px',
+            height: '5px',
             borderRadius: '50%',
-            background: '#38bdf8',
-            boxShadow: '0 0 6px #38bdf8',
+            background: '#ffffff',
+            border: '1px solid #64748b',
           }}
         />
       </div>

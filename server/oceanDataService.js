@@ -85,14 +85,15 @@ export async function getOceanModelSlice({
   const cDepth = Math.max(0, Math.min(6000, Number(depth)));
   const cStride = Math.max(1, Math.min(10, parseInt(stride, 10) || 1));
 
-  const cacheKey = `model:${datasetId}:${variable}:${isoTime}:${cDepth}:${cMinLat}:${cMaxLat}:${cMinLon}:${cMaxLon}:${cStride}`;
+  const vNorm = (variable || '').toLowerCase();
+  const cacheKey = `model:${datasetId}:${vNorm}:${isoTime}:${cDepth}:${cMinLat}:${cMaxLat}:${cMinLon}:${cMaxLon}:${cStride}`;
   if (oceanDataCache.has(cacheKey)) {
     return oceanDataCache.get(cacheKey);
   }
 
   // 1. Attempt Live ERDDAP Fetch
   try {
-    const varName = variable === 'temperature' || variable === 'sea_surface_temperature' ? 'Temperature' : 'Salinity';
+    const varName = vNorm === 'temperature' || vNorm === 'sea_surface_temperature' ? 'Temperature' : 'Salinity';
     const queryPart = `${varName}[(${isoTime}):1:(${isoTime})][(${cDepth}):1:(${cDepth})][(${cMinLat}):${cStride}:(${cMaxLat})][(${cMinLon}):${cStride}:(${cMaxLon})]`;
     const url = `https://erddap.ifremer.fr/erddap/griddap/${datasetId}.json?${encodeURIComponent(queryPart)}`;
 

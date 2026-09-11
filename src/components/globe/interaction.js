@@ -32,6 +32,17 @@ export function setupGlobeInteraction(viewer, {
         onVectorSelect(entity.vectorData);
         return;
       }
+      if (entity.weatherData && onAnalysisLocationSelect) {
+        onAnalysisLocationSelect({
+          latitude: entity.weatherData.latitude,
+          longitude: entity.weatherData.longitude,
+          source: 'CLICK',
+        });
+        if (onCoordinateProbe) {
+          onCoordinateProbe({ lat: entity.weatherData.latitude, lon: entity.weatherData.longitude });
+        }
+        return;
+      }
       // If clicking the analysis location marker itself, do not re-probe
       if (entity.id === 'analysis_location_marker' || entity.id === 'analysis_location_ring') {
         return;

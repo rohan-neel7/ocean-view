@@ -20,9 +20,10 @@ const VARIABLES = [
   },
   {
     id: 'ocean_current_velocity',
-    colormap: 'SPEED',
+    colormap: 'WINDY',
     icon: Wind,
-    unit: 'm/s'
+    unit: 'm/s',
+    name: 'Current Velocity & Winds',
   },
   {
     id: 'chlorophyll_a',
@@ -67,7 +68,7 @@ export default function VariableSelector() {
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Icon style={{ width: '16px', height: '16px', color: isActive ? '#38bdf8' : '#94a3b8' }} />
-                <span style={{ fontSize: '12px', fontWeight: '500', color: isActive ? '#f8fafc' : '#cbd5e1' }}>{caps?.displayName || v.id}</span>
+                <span style={{ fontSize: '12px', fontWeight: '500', color: isActive ? '#f8fafc' : '#cbd5e1' }}>{v.name || caps?.displayName || v.id}</span>
               </div>
               {isUnavailable
                 ? <span style={{ fontSize: '9px', fontFamily: 'var(--font-mono)', color: '#ef4444', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '3px', padding: '1px 5px' }}>UNAVAILABLE</span>

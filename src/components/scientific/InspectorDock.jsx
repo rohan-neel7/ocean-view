@@ -73,11 +73,12 @@ export default function InspectorDock() {
     return getNearbyObservations(500);
   }, [analysisLocation, getNearbyObservations]);
 
-  // Determine active sections
-  const hasProbe = Boolean(probedCoordinate);
+  // Determine active sections: SelectedAreaWeatherCard handles location probe pill.
+  // InspectorDock activates specifically when a profiling float or glider is selected.
+  const hasProbe = Boolean(probedCoordinate && !analysisLocation);
   const hasProfile = Boolean(selectedProfile);
-  const hasNearby = Boolean(analysisLocation && nearby && nearby.counts.total > 0);
-  const hasAnalysis = Boolean(analysisLocation);
+  const hasNearby = Boolean(selectedProfile && nearby && nearby.counts.total > 0);
+  const hasAnalysis = false;
 
   const activeCount = [hasProbe, hasProfile, hasNearby, hasAnalysis].filter(Boolean).length;
 

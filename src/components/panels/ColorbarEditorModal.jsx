@@ -78,28 +78,28 @@ export default function ColorbarEditorModal() {
         className="glass-panel"
         style={{
           width: '100%',
-          maxWidth: '460px',
-          padding: '24px',
-          background: 'rgba(9, 13, 22, 0.95)',
-          border: '1px solid rgba(56, 189, 248, 0.3)',
+          maxWidth: '440px',
+          padding: '20px',
+          background: 'var(--bg-surface-elevated)',
+          border: '1px solid var(--border-subtle)',
           borderRadius: '12px',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+          boxShadow: '0 20px 48px rgba(0,0,0,0.7)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Sliders style={{ width: '18px', height: '18px', color: '#38bdf8' }} />
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>
+            <Sliders style={{ width: '16px', height: '16px', color: 'var(--accent-teal)' }} />
+            <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
               Color Scale & Palette Manager
             </h3>
           </div>
           <button
             onClick={() => setColorbarModalOpen(false)}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
           >
-            <X style={{ width: '18px', height: '18px' }} />
+            <X style={{ width: '16px', height: '16px' }} />
           </button>
         </div>
 

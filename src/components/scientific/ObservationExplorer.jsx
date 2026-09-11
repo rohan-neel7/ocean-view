@@ -9,7 +9,7 @@ import { Activity, Navigation, Anchor, Compass, Dna, Eye } from 'lucide-react';
 import { useOceanView } from '../../app/AppContext.jsx';
 import { globalOceanProfileStore } from '../../engine/index.js';
 
-export default function ObservationExplorer() {
+export default function ObservationExplorer({ isCompact = false }) {
   const {
     selectedProfile,
     setSelectedProfile,
@@ -31,35 +31,37 @@ export default function ObservationExplorer() {
   const getPlatformIcon = (type) => {
     switch (type) {
       case 'GLIDER':
-        return <Navigation style={{ width: '13px', height: '13px', color: '#10b981' }} />;
+        return <Navigation style={{ width: '12px', height: '12px', color: '#10b981' }} />;
       case 'CTD_STATION':
-        return <Anchor style={{ width: '13px', height: '13px', color: '#f59e0b' }} />;
+        return <Anchor style={{ width: '12px', height: '12px', color: 'var(--accent-amber)' }} />;
       case 'BGC_ARGO_FLOAT':
-        return <Dna style={{ width: '13px', height: '13px', color: '#ec4899' }} />;
+        return <Dna style={{ width: '12px', height: '12px', color: '#ec4899' }} />;
       default:
-        return <Compass style={{ width: '13px', height: '13px', color: '#38bdf8' }} />;
+        return <Compass style={{ width: '12px', height: '12px', color: 'var(--accent-teal)' }} />;
     }
   };
 
   return (
     <div
-      className="glass-panel"
+      className={isCompact ? '' : 'glass-panel'}
       style={{
-        padding: '12px 14px',
-        maxHeight: '320px',
+        padding: isCompact ? '4px 0' : '10px 12px',
+        maxHeight: isCompact ? '200px' : '320px',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Activity style={{ width: '14px', height: '14px', color: '#38bdf8' }} />
-          <span style={{ fontSize: '11px', fontWeight: 600, color: '#f8fafc', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            In-Situ Assets ({filteredProfiles.length})
-          </span>
+      {!isCompact && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Activity style={{ width: '13px', height: '13px', color: 'var(--accent-teal)' }} />
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              In-Situ Assets ({filteredProfiles.length})
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Filters: Platform, Region, Depth */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px', paddingBottom: '4px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -109,24 +111,24 @@ export default function ObservationExplorer() {
                 padding: '6px 8px',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.02)',
-                border: isSelected ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.05)',
+                background: isSelected ? 'var(--accent-teal-soft)' : 'rgba(255, 255, 255, 0.02)',
+                border: isSelected ? '1px solid var(--border-highlight)' : '1px solid rgba(255, 255, 255, 0.05)',
                 transition: 'all 0.15s ease',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                 {getPlatformIcon(prof.platformType)}
                 <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  <div style={{ fontSize: '11px', color: isSelected ? '#38bdf8' : '#e2e8f0', fontWeight: 500 }}>
+                  <div style={{ fontSize: '11px', color: isSelected ? 'var(--accent-teal)' : 'var(--text-primary)', fontWeight: 500 }}>
                     {prof.platformId}
                   </div>
-                  <div style={{ fontSize: '9px', color: '#94a3b8' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>
                     {prof.location.lat.toFixed(2)}°N, {prof.location.lon.toFixed(2)}°E • {prof.depths.length} pts
                   </div>
                 </div>
               </div>
 
-              {isSelected && <Eye style={{ width: '12px', height: '12px', color: '#38bdf8', flexShrink: 0 }} />}
+              {isSelected && <Eye style={{ width: '12px', height: '12px', color: 'var(--accent-teal)', flexShrink: 0 }} />}
             </div>
           );
         })}
